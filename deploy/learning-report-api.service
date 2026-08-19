@@ -1,0 +1,23 @@
+[Unit]
+Description=Learning Report API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=learning-report
+Group=learning-report
+WorkingDirectory=/opt/learning-report/current
+EnvironmentFile=/etc/learning-report/learning-report.env
+ExecStart=/usr/bin/node server.mjs
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

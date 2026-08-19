@@ -1,0 +1,21 @@
+# Dependencies and build output
+node_modules/
+dist/
+.vite/
+
+# Local runtime and temporary files
+.tmp/
+*.log
+learning-report-release.tgz
+
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Student, teacher, session, and audit data
+server-data/*.json
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
