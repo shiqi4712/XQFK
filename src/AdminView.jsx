@@ -53,9 +53,10 @@ const ADMINISTRATOR_COLUMN_ALIASES = {
 };
 
 const normalizeHeader = (value) => String(value ?? '')
+  .normalize('NFKC')
   .trim()
   .toLowerCase()
-  .replace(/[\s_：:·-]/g, '');
+  .replace(/[\s\p{P}\p{Cf}]/gu, '');
 
 const toNumber = (value, fallback = 0) => {
   const number = Number(value);
@@ -72,6 +73,17 @@ function normalizeSpreadsheetRows(result) {
   if (!Array.isArray(sourceRows)) {
     throw new Error('无法识别表格内容。请使用系统模板，并保存为 .xlsx 或 UTF-8 编码的 .csv 文件。');
   }
+  const firstRow = sourceRows.find((row) => row != null);
+  const firstRowKeys = firstRow && !Array.isArray(firstRow) && typeof firstRow === 'object'
+    ? Object.keys(firstRow)
+    : [];
+  const recordsHaveNamedColumns = firstRowKeys.length > 0 && firstRowKeys.some((key) => !/^\d+$/.test(key));
+  if (recordsHaveNamedColumns) {
+    return [
+      firstRowKeys,
+      ...sourceRows.map((row) => firstRowKeys.map((key) => row?.[key] ?? '')),
+    ];
+  }
   return sourceRows.map((row) => {
     if (Array.isArray(row)) return row;
     if (row && typeof row === 'object') return Object.values(row);
@@ -82,12 +94,17 @@ function normalizeSpreadsheetRows(result) {
 function parseRows(result, columnAliases) {
   const rows = normalizeSpreadsheetRows(result);
   if (!rows.length) throw new Error('表格中没有可导入的数据');
-  const headers = rows[0];
+  const headerCandidates = rows.slice(0, 10);
+  const headerScores = headerCandidates.map((row) => Object.values(columnAliases)
+    .filter((aliases) => findColumn(row, aliases) >= 0).length);
+  const bestScore = Math.max(...headerScores);
+  const headerIndex = headerScores.indexOf(bestScore);
+  const headers = rows[headerIndex];
   const columns = Object.fromEntries(
     Object.entries(columnAliases).map(([field, aliases]) => [field, findColumn(headers, aliases)]),
   );
-  const dataRows = rows.slice(1)
-    .map((row, index) => ({ row, rowNumber: index + 2 }))
+  const dataRows = rows.slice(headerIndex + 1)
+    .map((row, index) => ({ row, rowNumber: headerIndex + index + 2 }))
     .filter(({ row }) => row.some((value) => String(value ?? '').trim()));
   if (!dataRows.length) throw new Error('表格中没有可导入的数据');
   return { headers, columns, dataRows };
@@ -105,9 +122,19 @@ function invalidRowsError(headers, failures, subject) {
 
 function rowsToStudents(rows, requireTeacherAccount) {
   const { headers, columns, dataRows } = parseRows(rows, STUDENT_COLUMN_ALIASES);
-  const requiredAdminColumns = ['studentId', 'name', 'teacherAccount', 'courseLine', 'teamLeader', 'submittedAssignments'];
-  if (requireTeacherAccount && requiredAdminColumns.some((field) => columns[field] < 0)) {
-    throw new Error('表格必须包含“用户ID”“学员姓名”“老师姓名”“课线”“组长”“作业提交数”六列');
+  const requiredAdminColumns = {
+    studentId: '用户ID',
+    name: '学员姓名',
+    teacherAccount: '老师姓名',
+    courseLine: '课线',
+    teamLeader: '组长',
+    submittedAssignments: '作业提交数',
+  };
+  const missingAdminColumns = Object.entries(requiredAdminColumns)
+    .filter(([field]) => columns[field] < 0)
+    .map(([, label]) => label);
+  if (requireTeacherAccount && missingAdminColumns.length) {
+    throw new Error(`表格缺少以下表头：${missingAdminColumns.join('、')}。请使用系统下载的六列表模板。`);
   }
   if (columns.studentId < 0 || columns.name < 0) {
     throw new Error('表格必须包含“用户ID”和“学员姓名”两列');
