@@ -67,7 +67,20 @@ function findColumn(headers, aliases) {
   return headers.findIndex((header) => normalizedAliases.includes(normalizeHeader(header)));
 }
 
-function parseRows(rows, columnAliases) {
+function normalizeSpreadsheetRows(result) {
+  const sourceRows = Array.isArray(result) ? result : result?.rows;
+  if (!Array.isArray(sourceRows)) {
+    throw new Error('无法识别表格内容。请使用系统模板，并保存为 .xlsx 或 UTF-8 编码的 .csv 文件。');
+  }
+  return sourceRows.map((row) => {
+    if (Array.isArray(row)) return row;
+    if (row && typeof row === 'object') return Object.values(row);
+    return [row];
+  });
+}
+
+function parseRows(result, columnAliases) {
+  const rows = normalizeSpreadsheetRows(result);
   if (!rows.length) throw new Error('表格中没有可导入的数据');
   const headers = rows[0];
   const columns = Object.fromEntries(
@@ -200,9 +213,14 @@ async function readSpreadsheet(file) {
   if (file.name.toLowerCase().endsWith('.csv')) {
     const result = Papa.parse(await file.text(), { skipEmptyLines: 'greedy' });
     if (result.errors.length) throw new Error(`CSV 解析失败：${result.errors[0].message}`);
-    return result.data;
+    return normalizeSpreadsheetRows(result.data);
   }
-  return readXlsxFile(file);
+  try {
+    return normalizeSpreadsheetRows(await readXlsxFile(file));
+  } catch (error) {
+    if (error.message?.startsWith('无法识别表格内容')) throw error;
+    throw new Error('Excel 文件无法读取。请将文件另存为 .xlsx 后重试，或使用系统下载的 CSV 模板。');
+  }
 }
 
 function formatDate(value) {
