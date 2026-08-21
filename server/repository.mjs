@@ -412,7 +412,7 @@ async function createMysqlStore() {
         await connection.rollback();
         if (error.code === 'ER_DUP_ENTRY') {
           error.code = 'TEACHER_ACCOUNT_CONFLICT';
-          error.message = '导入文件中包含已存在的教师账号';
+          error.message = '导入文件中包含已存在的老师姓名或账号';
         }
         throw error;
       } finally {

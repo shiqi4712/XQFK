@@ -128,7 +128,7 @@ function requireAdmin(request, response, next) {
 function normalizeTeacherInput(input) {
   const account = String(input.account || '').trim().toLowerCase();
   const displayName = String(input.displayName || input.name || '').trim();
-  if (!/^[a-z0-9._-]{3,40}$/.test(account)) throw new Error(`教师账号 ${account || '（空）'} 格式不正确`);
+  if (!/^[\p{L}\p{N}._·-]{2,40}$/u.test(account)) throw new Error(`教师账号 ${account || '（空）'} 格式不正确`);
   if (!displayName) throw new Error(`教师账号 ${account} 缺少老师姓名`);
   return { account, displayName };
 }
@@ -312,7 +312,7 @@ app.post('/api/admin/students/import', requireTeacher, requireSameOrigin, async 
     for (const input of request.body.students) {
       const teacherAccount = String(input.teacherAccount || '').trim().toLowerCase();
       const owner = teachersByAccount.get(teacherAccount);
-      if (!owner) throw new Error(`老师账号 ${teacherAccount || '（空）'} 不存在或已停用`);
+      if (!owner) throw new Error(`老师姓名 ${teacherAccount || '（空）'} 不存在或已停用`);
       const existing = await store.getStudentById(String(input.studentId || '').trim().toUpperCase());
       if (existing && existing.teacherId !== owner.teacherId) {
         const error = new Error(`学生 ID ${existing.studentId} 已归属其他教师，无法导入`);
@@ -333,7 +333,7 @@ app.post('/api/admin/students/import', requireTeacher, requireSameOrigin, async 
     return response.json({ imported, total: students.length, students });
   } catch (error) {
     if (error.code === 'STUDENT_OWNER_CONFLICT') return response.status(409).json({ message: error.message });
-    if (error.message?.includes('必须包含') || error.message?.includes('作业提交数') || error.message?.includes('老师账号')) return response.status(400).json({ message: error.message });
+    if (error.message?.includes('必须包含') || error.message?.includes('作业提交数') || error.message?.includes('老师姓名') || error.message?.includes('老师账号')) return response.status(400).json({ message: error.message });
     return next(error);
   }
 });
@@ -377,7 +377,7 @@ app.post('/api/admin/teachers/import', requireTeacher, requireAdmin, requireSame
     return response.json({ ...result, teachers: await store.listTeachers(), defaultPassword: defaultTeacherPassword });
   } catch (error) {
     if (error.code === 'TEACHER_ACCOUNT_CONFLICT') return response.status(409).json({ message: error.message });
-    if (error.message?.includes('教师账号')) return response.status(400).json({ message: error.message });
+    if (error.message?.includes('教师账号') || error.message?.includes('老师姓名')) return response.status(400).json({ message: error.message });
     return next(error);
   }
 });
