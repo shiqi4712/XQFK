@@ -1,4 +1,5 @@
 import { Component, StrictMode, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import {
   ArrowLeft,
@@ -17,7 +18,6 @@ import {
   HeartHandshake,
   LockKeyhole,
   LogOut,
-  PlayCircle,
   Rocket,
   ShieldCheck,
   Sparkles,
@@ -685,15 +685,17 @@ function AbilityView({ onBack, onNext }) {
         </p>
       </div>
 
-      <section className="ability-video" aria-labelledby="ability-video-title">
-        <div className="ability-video__heading">
-          <p>ELITE CLASS · VIDEO</p>
-          <h2 id="ability-video-title">了解科特班</h2>
+      <section className="ability-overview" aria-labelledby="ability-overview-title">
+        <div className="ability-overview__heading">
+          <p>ELITE CLASS · OVERVIEW</p>
+          <h2 id="ability-overview-title">了解科特班</h2>
         </div>
-        <video className="ability-video__player" controls playsInline preload="metadata">
-          <source src={assetUrl('elite-class.mp4')} type="video/mp4" />
-          当前浏览器暂不支持视频播放。
-        </video>
+        <img
+          className="ability-overview__image"
+          src={assetUrl('elite-class-overview.jpg')}
+          alt="编程猫科特班科技特长生专属人才培养计划介绍"
+          decoding="async"
+        />
       </section>
 
       <BottomAction label="查看专属 6 个月规划" icon={ArrowRight} onClick={onNext} secondaryAction={onBack} />
@@ -761,7 +763,7 @@ function PlanList({ items }) {
   );
 }
 
-function ReasonVideoDialog({ reason, onClose }) {
+function ReasonDetailDialog({ reason, onClose }) {
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     const closeOnEscape = (event) => {
@@ -775,39 +777,34 @@ function ReasonVideoDialog({ reason, onClose }) {
     };
   }, [onClose]);
 
-  return (
-    <div className="reason-video-backdrop" onClick={onClose}>
+  return createPortal(
+    <div className="reason-detail-backdrop" onClick={onClose}>
       <section
-        className="reason-video-dialog"
+        className="reason-detail-dialog"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="reason-video-title"
+        aria-labelledby="reason-detail-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <button className="reason-video-dialog__close" type="button" onClick={onClose} aria-label="关闭介绍视频" title="关闭介绍视频">
+        <button className="reason-detail-dialog__close" type="button" onClick={onClose} aria-label="关闭图解" title="关闭图解">
           <X size={18} />
         </button>
 
-        <div className="reason-video-dialog__media">
-          {reason.videoSrc ? (
-            <video controls autoPlay playsInline preload="metadata" poster={reason.videoPoster}>
-              <source src={reason.videoSrc} type="video/mp4" />
-            </video>
-          ) : (
-            <div className="reason-video-dialog__placeholder">
-              <img src={reason.videoPoster} alt="" />
-              <span><PlayCircle size={42} /></span>
-              <strong>视频即将上线</strong>
-            </div>
-          )}
+        <div className="reason-detail-dialog__media">
+          <img
+            className="reason-detail-dialog__image"
+            src={reason.imageSrc}
+            alt={`${reason.category}：${reason.title}`}
+          />
         </div>
 
-        <div className="reason-video-dialog__content">
+        <div className="reason-detail-dialog__content">
           <p>0{reason.index + 1} · {reason.category}</p>
-          <h2 id="reason-video-title">{reason.title}</h2>
+          <h2 id="reason-detail-title">{reason.title}</h2>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -820,8 +817,7 @@ function ConsensusView({ agreed, setAgreed, onBack, onNext }) {
       copy: '编程猫教学老师会持续关注孩子的学习进度与课堂表现，及时发现学习中的问题，并提供针对性的辅导与帮助。',
       audience: '让孩子',
       benefits: ['遇到问题有人关注', '学习困难有人辅导', '思考过程有人引导'],
-      videoPoster: assetUrl('codemao-study-mascot.png'),
-      videoSrc: assetUrl('reason-professional-support.mp4'),
+      imageSrc: assetUrl('reason-professional-support.jpg'),
     },
     {
       category: '学情反馈',
@@ -829,8 +825,7 @@ function ConsensusView({ agreed, setAgreed, onBack, onNext }) {
       copy: '孩子上完一节课，我们会清晰展示“到底学会了什么”，包括学习内容、知识掌握、课堂表现、作品成果，以及需要进一步提升的方向。',
       audience: '让家长',
       benefits: ['知道学了什么', '了解掌握多少', '明确哪里需要提升'],
-      videoPoster: assetUrl('lesson-03-translator.png'),
-      videoSrc: assetUrl('reason-learning-feedback.mp4'),
+      imageSrc: assetUrl('reason-learning-feedback.jpg'),
     },
     {
       category: '个性定制',
@@ -838,17 +833,15 @@ function ConsensusView({ agreed, setAgreed, onBack, onNext }) {
       copy: '每个孩子的基础、兴趣、学习节奏和发展目标都不同，适合别人的学习路径，不一定适合自己的孩子。编程猫结合孩子的阶段性学情、能力表现与学习目标，提供更有针对性的学习规划，帮助家长明确现在学什么、下一步学什么，以及未来可以往哪里发展。',
       audience: '让成长',
       benefits: ['更符合孩子特点', '学习目标更明确', '成长路径更清晰'],
-      videoPoster: assetUrl('competition-roadmap.png'),
-      videoSrc: assetUrl('reason-learning-plan.mp4'),
+      imageSrc: assetUrl('reason-learning-plan.jpg'),
     },
     {
       category: '赛事辅导',
-      title: '赛事辅导不发愁，专业教练助力孩子进阶',
-      copy: '赛事怎么选？应该学什么？怎么准备？专业赛事教练会根据孩子的能力基础和目标赛事，提供针对性的训练与备赛指导，帮助孩子明确训练方向，逐步提升解决问题、项目实践和竞赛应对能力。',
+      title: '北大认证名师，助力赛事辅导',
+      copy: '专业教研师资全面准备孩子的课程内容与辅导方向，涵盖未来赛事规划及金牌备赛辅导。',
       audience: '让家庭',
       benefits: ['赛事选择有方向', '备赛训练有规划', '挑战目标有支持'],
-      videoPoster: assetUrl('codemao-trophy-mascot.png'),
-      videoSrc: assetUrl('reason-competition-coaching.mp4'),
+      imageSrc: assetUrl('reason-competition-coaching.jpg'),
     },
   ];
 
@@ -873,7 +866,7 @@ function ConsensusView({ agreed, setAgreed, onBack, onNext }) {
               key={reason.title}
               role="button"
               tabIndex={0}
-              aria-label={`播放${reason.category}介绍视频`}
+              aria-label={`查看${reason.category}图解`}
               onClick={() => setActiveReason({ ...reason, index })}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -886,7 +879,7 @@ function ConsensusView({ agreed, setAgreed, onBack, onNext }) {
               <div>
                 <div className="letter-principles__meta">
                   <p className="letter-principles__category">{reason.category}</p>
-                  <span><PlayCircle size={14} /> 观看介绍</span>
+                  <span><BookOpen size={14} /> 查看图解</span>
                 </div>
                 <h2>{reason.title}</h2>
                 <p>{reason.copy}</p>
@@ -918,7 +911,7 @@ function ConsensusView({ agreed, setAgreed, onBack, onNext }) {
         secondaryAction={onBack}
       />
 
-      {activeReason && <ReasonVideoDialog reason={activeReason} onClose={() => setActiveReason(null)} />}
+      {activeReason && <ReasonDetailDialog reason={activeReason} onClose={() => setActiveReason(null)} />}
     </section>
   );
 }
