@@ -162,7 +162,7 @@ button:disabled { cursor: not-allowed; }
   box-shadow: 0 0 0 4px rgba(220, 107, 107, 0.09);
 }
 
-.id-field input { width: 100%; border: 0; outline: 0; color: #111827; background: transparent; font-size: 14px; }
+.id-field input { width: 100%; border: 0; outline: 0; color: #111827; background: transparent; font-size: 16px; }
 .id-field input::placeholder { color: #9aa4b2; }
 
 .login-error {

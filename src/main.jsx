@@ -423,7 +423,9 @@ function LoginView({ studentId, setStudentId, loginError, loginPending, onSubmit
               aria-label="用户 ID"
               aria-invalid={Boolean(loginError)}
               aria-describedby={loginError ? 'login-error' : undefined}
+              autoCapitalize="characters"
               autoComplete="off"
+              spellCheck="false"
             />
           </label>
           {loginError && <p className="login-error" id="login-error" role="alert">{loginError}</p>}
