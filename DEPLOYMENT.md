@@ -100,6 +100,20 @@ sudo mysql learning_report < sql/schema.sql
 
 应用运行时保持 `DB_AUTO_MIGRATE=false`，避免 Node.js 账号拥有建表权限。数据库结构升级应由管理员单独执行经过审核的 SQL。
 
+如果 RDS 中已经存在旧表，不要重复执行完整建表脚本。发布本版本前由数据库管理员依次执行老师角色、学生课线与组长字段迁移：
+
+```bash
+mysql --host=RDS内网地址 --user=管理员账号 -p learning_report < sql/migrations/001_add_teacher_role.sql
+mysql --host=RDS内网地址 --user=管理员账号 -p learning_report < sql/migrations/002_add_student_org_fields.sql
+```
+
+执行后检查管理员角色：
+
+```sql
+SELECT account, display_name, role, active FROM teachers ORDER BY role, account;
+SHOW COLUMNS FROM students WHERE Field IN ('course_line', 'team_leader');
+```
+
 ## 5. 配置生产环境
 
 复制并编辑配置：
@@ -122,7 +136,7 @@ sudo nano /etc/learning-report/learning-report.env
 
 环境文件只存放在 `/etc/learning-report`，不要提交到代码仓库或放进前端目录。
 
-## 6. 迁移已有数据并创建教师
+## 6. 迁移已有数据并创建管理员
 
 首次迁移现有 JSON 数据：
 
@@ -140,11 +154,19 @@ npm run migrate:mysql
 npm run teacher -- list
 ```
 
-创建正式教师账号：
+首次部署时创建管理员账号。`--role=admin` 必须显式指定：
+
+```bash
+export TEACHER_PASSWORD='替换为管理员强密码'
+npm run teacher -- create --account=shiqi --name='系统管理员' --role=admin
+unset TEACHER_PASSWORD
+```
+
+管理员登录 `/admin` 后，可以在“账号与权限”页单个或批量创建管理员，也可以批量创建普通老师。管理员导入表必须提供至少 10 位初始密码；新老师默认密码为 `bcm666`，应要求老师首次登录后修改密码。也可以通过命令行创建普通老师：
 
 ```bash
 export TEACHER_PASSWORD='替换为教师初始强密码'
-npm run teacher -- create --account=teacher_account --name='教师姓名'
+npm run teacher -- create --account=teacher_account --name='教师姓名' --role=teacher
 unset TEACHER_PASSWORD
 ```
 
@@ -249,14 +271,16 @@ sudo /usr/local/sbin/learning-report-restore-check /var/backups/learning-report/
 逐项确认：
 
 1. `https://正式域名/api/health` 返回 `storage=mysql`。
-2. 教师 A 只能看到、搜索、下载自己的学生。
-3. 教师 B 无法覆盖教师 A 的学生 ID。
-4. XLSX/CSV 导入成功，错误行能下载失败记录。
-5. 家长使用随机报告访问码进入，学生 ID 不能直接登录。
-6. 家长查看报告后后台显示“已查看”。
-7. 家长选择时间并锁定名额后后台显示“已锁定”。
-8. 图片和视频请求来自 OSS/CDN，页面不暴露 AccessKey。
-9. HTTPS、证书自动续期、每日备份和恢复演练均正常。
+2. 管理员登录 `/admin` 后能看到老师账号管理和全部学生数据。
+3. 管理员能通过 XLSX/CSV 批量创建老师账号、重置默认密码、启停账号；仍有关联学生的老师不能删除。
+4. 管理员批量导入学生时，“老师账号”列能正确分配学生。
+5. 教师 A 通过同一 `/admin` 入口登录，只能看到、搜索、下载自己的学生，并且每次只能新增一名学生。
+6. 教师 B 无法读取或覆盖教师 A 的学生，也无法访问老师账号管理 API。
+7. XLSX/CSV 导入成功，错误行能下载失败记录。
+8. 家长使用随机报告访问码进入，学生 ID 不能直接登录。
+9. 家长查看报告后后台显示“已查看”；选择时间并锁定名额后显示“已锁定”。
+10. 图片和视频请求来自 OSS/CDN，页面不暴露 AccessKey。
+11. HTTPS、证书自动续期、每日备份和恢复演练均正常。
 
 ## 12. 更新与回滚
 

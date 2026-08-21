@@ -5,7 +5,7 @@ import {
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
-import { createDataStore } from './server/repository.mjs';
+import { createDataStore, createTeacherId } from './server/repository.mjs';
 import { hashPassword, verifyPassword } from './server/security.mjs';
 
 const app = express();
@@ -18,6 +18,7 @@ const allowLegacyStudentIdLogin = process.env.ALLOW_LEGACY_STUDENT_ID_LOGIN
   ? process.env.ALLOW_LEGACY_STUDENT_ID_LOGIN === 'true'
   : !isProduction;
 const store = await createDataStore();
+const defaultTeacherPassword = 'bcm666';
 
 if (isProduction && (!process.env.SESSION_SECRET || sessionSecret.length < 32)) {
   throw new Error('Production requires SESSION_SECRET with at least 32 characters');
@@ -84,6 +85,7 @@ function teacherSummary(teacher) {
     teacherId: teacher.teacherId,
     account: teacher.account,
     displayName: teacher.displayName,
+    role: teacher.role || 'teacher',
   };
 }
 
@@ -118,11 +120,37 @@ async function requireTeacher(request, response, next) {
   }
 }
 
+function requireAdmin(request, response, next) {
+  if (request.teacher?.role !== 'admin') return response.status(403).json({ message: '仅系统管理员可执行此操作' });
+  return next();
+}
+
+function normalizeTeacherInput(input) {
+  const account = String(input.account || '').trim().toLowerCase();
+  const displayName = String(input.displayName || input.name || '').trim();
+  if (!/^[a-z0-9._-]{3,40}$/.test(account)) throw new Error(`教师账号 ${account || '（空）'} 格式不正确`);
+  if (!displayName) throw new Error(`教师账号 ${account} 缺少老师姓名`);
+  return { account, displayName };
+}
+
 function requireSameOrigin(request, response, next) {
   const origin = request.get('origin');
   if (!origin) return next();
   const expectedOrigin = `${request.protocol}://${request.get('host')}`;
-  if (origin !== expectedOrigin) return response.status(403).json({ message: '请求来源验证失败' });
+  const developmentOrigin = !isProduction && (() => {
+    try {
+      const parsed = new URL(origin);
+      const localHost = parsed.hostname === 'localhost'
+        || parsed.hostname === '127.0.0.1'
+        || parsed.hostname === '::1'
+        || /^192\.168\.\d{1,3}\.\d{1,3}$/.test(parsed.hostname)
+        || /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(parsed.hostname);
+      return localHost && parsed.port === '5173';
+    } catch {
+      return false;
+    }
+  })();
+  if (origin !== expectedOrigin && !developmentOrigin) return response.status(403).json({ message: '请求来源验证失败' });
   return next();
 }
 
@@ -133,7 +161,7 @@ function csvCell(value) {
 
 function studentsToCsv(students) {
   const headers = [
-    '学生ID', '报告访问码', '学员姓名', '课程级别', '课表ID', '最近课程数', '已提交作业', '作业总数',
+    '学生ID', '报告访问码', '学员姓名', '课程级别', '课线', '组长', '课表ID', '最近课程数', '已提交作业', '作业总数',
     '代码正确率', '学习时长', '家长查看状态', '查看时间', '学位状态', '锁定时间', '上课星期', '上课时间',
   ];
   const rows = students.map((student) => [
@@ -141,11 +169,13 @@ function studentsToCsv(students) {
     student.reportCode,
     student.name,
     student.level,
+    student.courseLine,
+    student.teamLeader,
     student.scheduleId,
     student.learningData.recentLessons,
     student.learningData.submittedAssignments,
-    student.learningData.totalAssignments,
-    `${student.learningData.codeCorrectRate}%`,
+    3,
+    '100%',
     student.learningData.studyHours,
     student.viewedAt ? '已查看' : '未查看',
     student.viewedAt,
@@ -214,7 +244,10 @@ app.post('/api/admin/password', requireTeacher, requireSameOrigin, async (reques
 
 app.get('/api/admin/students', requireTeacher, async (request, response, next) => {
   try {
-    response.json({ students: await store.listStudentsByTeacher(request.teacher.teacherId) });
+    const students = request.teacher.role === 'admin'
+      ? await store.listAllStudents()
+      : await store.listStudentsByTeacher(request.teacher.teacherId);
+    response.json({ students });
   } catch (error) {
     next(error);
   }
@@ -222,7 +255,10 @@ app.get('/api/admin/students', requireTeacher, async (request, response, next) =
 
 app.get('/api/admin/import-batches', requireTeacher, async (request, response, next) => {
   try {
-    response.json({ batches: await store.listImportBatches(request.teacher.teacherId, 10) });
+    const batches = request.teacher.role === 'admin'
+      ? await store.listAllImportBatches(10)
+      : await store.listImportBatches(request.teacher.teacherId, 10);
+    response.json({ batches });
   } catch (error) {
     next(error);
   }
@@ -238,7 +274,9 @@ app.get('/api/admin/audit-logs', requireTeacher, async (request, response, next)
 
 app.get('/api/admin/students/export.csv', requireTeacher, async (request, response, next) => {
   try {
-    const students = await store.listStudentsByTeacher(request.teacher.teacherId);
+    const students = request.teacher.role === 'admin'
+      ? await store.listAllStudents()
+      : await store.listStudentsByTeacher(request.teacher.teacherId);
     const date = new Date().toISOString().slice(0, 10);
     response.setHeader('Content-Type', 'text/csv; charset=utf-8');
     response.setHeader('Content-Disposition', `attachment; filename="students-${request.teacher.teacherId}-${date}.csv"`);
@@ -257,17 +295,161 @@ app.post('/api/admin/students/import', requireTeacher, requireSameOrigin, async 
     if (request.body.students.length > 5000) {
       return response.status(400).json({ message: '单次最多导入 5000 条学生数据' });
     }
+    if (request.teacher.role !== 'admin' && request.body.students.length !== 1) {
+      return response.status(400).json({ message: '教师每次只能新增或更新 1 名学生' });
+    }
 
-    const result = await store.importStudents(
-      request.teacher.teacherId,
-      request.body.students,
-      String(request.body.fileName || '').slice(0, 255),
-    );
-    audit({ teacherId: request.teacher.teacherId, action: 'students.imported', targetType: 'student_collection', targetId: request.teacher.teacherId, metadata: { count: result.imported, fileName: request.body.fileName || '' }, ipAddress: requestIp(request) });
-    return response.json(result);
+    const fileName = String(request.body.fileName || '').slice(0, 255);
+    if (request.teacher.role !== 'admin') {
+      const result = await store.importStudents(request.teacher.teacherId, request.body.students, fileName);
+      audit({ teacherId: request.teacher.teacherId, action: 'students.imported', targetType: 'student_collection', targetId: request.teacher.teacherId, metadata: { count: result.imported, fileName }, ipAddress: requestIp(request) });
+      return response.json(result);
+    }
+
+    const teachers = await store.listTeachers();
+    const teachersByAccount = new Map(teachers.filter((teacher) => teacher.role === 'teacher' && teacher.active).map((teacher) => [teacher.account.toLowerCase(), teacher]));
+    const grouped = new Map();
+    for (const input of request.body.students) {
+      const teacherAccount = String(input.teacherAccount || '').trim().toLowerCase();
+      const owner = teachersByAccount.get(teacherAccount);
+      if (!owner) throw new Error(`老师账号 ${teacherAccount || '（空）'} 不存在或已停用`);
+      const existing = await store.getStudentById(String(input.studentId || '').trim().toUpperCase());
+      if (existing && existing.teacherId !== owner.teacherId) {
+        const error = new Error(`学生 ID ${existing.studentId} 已归属其他教师，无法导入`);
+        error.code = 'STUDENT_OWNER_CONFLICT';
+        throw error;
+      }
+      if (!grouped.has(owner.teacherId)) grouped.set(owner.teacherId, []);
+      grouped.get(owner.teacherId).push(input);
+    }
+
+    let imported = 0;
+    for (const [teacherId, inputs] of grouped) {
+      const result = await store.importStudents(teacherId, inputs, fileName);
+      imported += result.imported;
+    }
+    const students = await store.listAllStudents();
+    audit({ teacherId: request.teacher.teacherId, action: 'admin.students_imported', targetType: 'student_collection', targetId: 'all', metadata: { count: imported, fileName }, ipAddress: requestIp(request) });
+    return response.json({ imported, total: students.length, students });
   } catch (error) {
     if (error.code === 'STUDENT_OWNER_CONFLICT') return response.status(409).json({ message: error.message });
-    if (error.message?.includes('必须包含')) return response.status(400).json({ message: error.message });
+    if (error.message?.includes('必须包含') || error.message?.includes('作业提交数') || error.message?.includes('老师账号')) return response.status(400).json({ message: error.message });
+    return next(error);
+  }
+});
+
+app.get('/api/admin/teachers', requireTeacher, requireAdmin, async (_request, response, next) => {
+  try {
+    const [teachers, students] = await Promise.all([store.listTeachers(), store.listAllStudents()]);
+    response.json({
+      teachers: teachers.map((teacher) => ({
+        ...teacher,
+        studentCount: students.filter((student) => student.teacherId === teacher.teacherId).length,
+        viewedCount: students.filter((student) => student.teacherId === teacher.teacherId && student.viewedAt).length,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/admin/teachers/import', requireTeacher, requireAdmin, requireSameOrigin, async (request, response, next) => {
+  try {
+    if (!Array.isArray(request.body.teachers) || request.body.teachers.length === 0) {
+      return response.status(400).json({ message: '没有可导入的老师账号' });
+    }
+    if (request.body.teachers.length > 1000) return response.status(400).json({ message: '单次最多导入 1000 个老师账号' });
+    const normalized = request.body.teachers.map(normalizeTeacherInput);
+    const accounts = new Set(normalized.map((teacher) => teacher.account));
+    if (accounts.size !== normalized.length) return response.status(400).json({ message: '导入文件中存在重复老师账号' });
+    const prepared = await Promise.all(normalized.map(async (teacher) => {
+      const credentials = await hashPassword(defaultTeacherPassword, 6);
+      return {
+        ...teacher,
+        teacherId: createTeacherId(),
+        role: 'teacher',
+        passwordSalt: credentials.salt,
+        passwordHash: credentials.hash,
+      };
+    }));
+    const result = await store.importTeachers(prepared);
+    audit({ teacherId: request.teacher.teacherId, action: 'admin.teachers_imported', targetType: 'teacher_collection', targetId: 'teachers', metadata: { count: result.imported }, ipAddress: requestIp(request) });
+    return response.json({ ...result, teachers: await store.listTeachers(), defaultPassword: defaultTeacherPassword });
+  } catch (error) {
+    if (error.code === 'TEACHER_ACCOUNT_CONFLICT') return response.status(409).json({ message: error.message });
+    if (error.message?.includes('教师账号')) return response.status(400).json({ message: error.message });
+    return next(error);
+  }
+});
+
+app.post('/api/admin/administrators/import', requireTeacher, requireAdmin, requireSameOrigin, async (request, response, next) => {
+  try {
+    if (!Array.isArray(request.body.administrators) || request.body.administrators.length === 0) {
+      return response.status(400).json({ message: '没有可导入的管理员账号' });
+    }
+    if (request.body.administrators.length > 200) return response.status(400).json({ message: '单次最多导入 200 个管理员账号' });
+    const normalized = request.body.administrators.map((input) => ({
+      ...normalizeTeacherInput(input),
+      password: String(input.password || ''),
+    }));
+    const accounts = new Set(normalized.map((administrator) => administrator.account));
+    if (accounts.size !== normalized.length) return response.status(400).json({ message: '导入文件中存在重复管理员账号' });
+    const prepared = await Promise.all(normalized.map(async (administrator) => {
+      const credentials = await hashPassword(administrator.password);
+      return {
+        account: administrator.account,
+        displayName: administrator.displayName,
+        teacherId: createTeacherId(),
+        role: 'admin',
+        passwordSalt: credentials.salt,
+        passwordHash: credentials.hash,
+      };
+    }));
+    const result = await store.importTeachers(prepared);
+    audit({ teacherId: request.teacher.teacherId, action: 'admin.administrators_imported', targetType: 'teacher_collection', targetId: 'administrators', metadata: { count: result.imported }, ipAddress: requestIp(request) });
+    return response.json({ ...result, teachers: await store.listTeachers() });
+  } catch (error) {
+    if (error.code === 'TEACHER_ACCOUNT_CONFLICT') return response.status(409).json({ message: error.message });
+    if (error.message?.includes('教师账号') || error.message?.includes('至少需要')) return response.status(400).json({ message: error.message });
+    return next(error);
+  }
+});
+
+app.delete('/api/admin/teachers', requireTeacher, requireAdmin, requireSameOrigin, async (request, response, next) => {
+  try {
+    const teacherIds = [...new Set((Array.isArray(request.body.teacherIds) ? request.body.teacherIds : []).map((value) => String(value).trim()).filter(Boolean))];
+    if (!teacherIds.length) return response.status(400).json({ message: '请选择要删除的老师账号' });
+    if (teacherIds.length > 500) return response.status(400).json({ message: '单次最多删除 500 个老师账号' });
+    const result = await store.deleteTeachers(teacherIds, request.teacher.teacherId);
+    audit({ teacherId: request.teacher.teacherId, action: 'admin.teachers_deleted', targetType: 'teacher_collection', targetId: 'teachers', metadata: { count: result.deleted }, ipAddress: requestIp(request) });
+    return response.json(result);
+  } catch (error) {
+    if (error.code === 'TEACHER_DELETE_BLOCKED') return response.status(409).json({ message: error.message });
+    return next(error);
+  }
+});
+
+app.post('/api/admin/teachers/:teacherId/reset-password', requireTeacher, requireAdmin, requireSameOrigin, async (request, response, next) => {
+  try {
+    const teacher = await store.getTeacherById(request.params.teacherId);
+    if (!teacher || teacher.role !== 'teacher') return response.status(404).json({ message: '未找到老师账号' });
+    const credentials = await hashPassword(defaultTeacherPassword, 6);
+    await store.updateTeacherPassword(teacher.teacherId, credentials.salt, credentials.hash);
+    audit({ teacherId: request.teacher.teacherId, action: 'admin.teacher_password_reset', targetType: 'teacher', targetId: teacher.teacherId, metadata: {}, ipAddress: requestIp(request) });
+    return response.json({ ok: true, defaultPassword: defaultTeacherPassword });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post('/api/admin/teachers/:teacherId/active', requireTeacher, requireAdmin, requireSameOrigin, async (request, response, next) => {
+  try {
+    const teacher = await store.getTeacherById(request.params.teacherId);
+    if (!teacher || teacher.role !== 'teacher') return response.status(404).json({ message: '未找到老师账号' });
+    const updated = await store.setTeacherActive(teacher.account, Boolean(request.body.active));
+    audit({ teacherId: request.teacher.teacherId, action: 'admin.teacher_status_changed', targetType: 'teacher', targetId: teacher.teacherId, metadata: { active: updated.active }, ipAddress: requestIp(request) });
+    return response.json({ teacher: teacherSummary(updated) });
+  } catch (error) {
     return next(error);
   }
 });

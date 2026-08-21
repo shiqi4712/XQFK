@@ -65,19 +65,30 @@ const REPORT = {
   ],
 };
 
-const randomInteger = (minimum, maximum) => (
-  Math.floor(Math.random() * (maximum - minimum + 1)) + minimum
-);
+function stableRandomInteger(seed, minimum, maximum) {
+  let hash = 2166136261;
+  for (const character of String(seed)) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return minimum + ((hash >>> 0) % (maximum - minimum + 1));
+}
 
-function createLearningReport(learningData) {
-  const assignmentRate = learningData.totalAssignments > 0
-    ? Math.round((learningData.submittedAssignments / learningData.totalAssignments) * 100)
-    : 0;
-  const interactionRate = randomInteger(92, 95);
-  const debugCount = randomInteger(8, 12);
+function createLearningReport(learningData, studentId) {
+  const totalAssignments = 3;
+  const importedAssignments = Number(learningData.submittedAssignments);
+  const submittedAssignments = Number.isFinite(importedAssignments)
+    ? Math.min(3, Math.max(1, importedAssignments))
+    : 3;
+  const assignmentRate = Math.round((submittedAssignments / totalAssignments) * 100);
+  const interactionRate = stableRandomInteger(`${studentId}:interaction`, 92, 95);
+  const debugCount = stableRandomInteger(`${studentId}:debug`, 8, 16);
 
   return {
     ...learningData,
+    submittedAssignments,
+    totalAssignments,
+    codeCorrectRate: 100,
     assignmentRate,
     interactionRate,
     debugCount,
@@ -85,27 +96,28 @@ function createLearningReport(learningData) {
       {
         label: '作业提交率',
         value: assignmentRate,
-        note: `${learningData.submittedAssignments}/${learningData.totalAssignments} 次作业已提交`,
+        note: `${submittedAssignments}/${totalAssignments} 次作业已提交`,
         tone: 'indigo',
       },
       {
         label: '代码正确率',
-        value: learningData.codeCorrectRate,
-        note: `近 ${learningData.recentLessons} 课调试 ${debugCount} 次`,
+        value: 100,
+        note: `近 3 次课调试 ${debugCount} 次`,
         tone: 'teal',
       },
       {
         label: '课中互动情况',
         value: interactionRate,
-        note: `近 ${learningData.recentLessons} 课保持积极参与`,
+        note: '近 3 次课保持积极参与',
         tone: 'amber',
       },
       {
-        label: '学习时长',
-        value: learningData.studyHours,
-        unit: '小时',
-        progress: Math.min(100, Math.round((learningData.studyHours / 8) * 100)),
-        note: `近 ${learningData.recentLessons} 课累计学习`,
+        label: '综合能力等级',
+        value: 'A+',
+        unit: '',
+        progress: 100,
+        presentation: 'grade',
+        note: '综合评定表现优秀',
         tone: 'blue',
       },
     ],
@@ -186,10 +198,13 @@ const SUBJECT_POINTS = [
 ];
 
 function createLearningReviews(learningReport) {
+  const assignmentSummary = learningReport.submittedAssignments === 3
+    ? '3 次作业均已提交'
+    : `已提交 ${learningReport.submittedAssignments}/3 次作业`;
   return [
     {
       label: '综合评价',
-      copy: `最近 ${learningReport.recentLessons} 次课，${learningReport.submittedAssignments} 次作业均已提交，作业提交率和代码正确率均为 100%；课中互动率为 ${learningReport.interactionRate}%，累计完成 ${learningReport.debugCount} 次程序调试。整体学习投入稳定，能够跟随课堂节奏完成从理解任务、搭建程序到呈现作品的完整过程。`,
+      copy: `最近 3 次课，${assignmentSummary}，作业提交率为 ${learningReport.assignmentRate}%，代码正确率为 100%；课中互动率为 ${learningReport.interactionRate}%，累计完成 ${learningReport.debugCount} 次程序调试。整体学习投入稳定，能够跟随课堂节奏完成从理解任务、搭建程序到呈现作品的完整过程。`,
     },
   {
     label: '编程能力',
@@ -274,7 +289,7 @@ function App() {
       setStudent({
         ...matchedStudent,
         accessKey,
-        learningReport: createLearningReport(matchedStudent.learningData),
+        learningReport: createLearningReport(matchedStudent.learningData, matchedStudent.studentId),
       });
       setLoginError('');
       setAgreed(false);
@@ -391,7 +406,7 @@ function LoginView({ studentId, setStudentId, loginError, loginPending, onSubmit
         </div>
 
         <div className="login-copy">
-          <h1>科特班专属英才学习计划</h1>
+          <h1><span>科特班·英才计划</span><span>专属学习规划</span></h1>
           <p>好课程 好老师 助力拿到好结果</p>
         </div>
 
@@ -473,7 +488,7 @@ function AnalyticsView({ student, onNext }) {
           <p className="eyebrow">过去 {learningReport.recentLessons} 节课</p>
           <h1>学习数据</h1>
         </div>
-        <span className="stage-pill"><span /> 阶段表现良好</span>
+        <span className="stage-pill"><span /> 综合学习数据</span>
       </div>
 
       <div className="metrics-grid">
@@ -484,7 +499,6 @@ function AnalyticsView({ student, onNext }) {
         <div className="course-summary__heading">
           <div className="course-summary__meta">
             <span>LEARNING PORTFOLIO</span>
-            <em>04</em>
           </div>
           <h2 id="course-summary-title">课程内容</h2>
           <p>从作品里，看见编程知识与学科思维的迁移。</p>
@@ -629,25 +643,31 @@ function LessonDetailDialog({ lesson, index, onClose }) {
   );
 }
 
-function MetricCard({ label, value, unit = '%', progress = value, note, tone }) {
+function MetricCard({ label, value, unit = '%', progress = value, note, tone, presentation }) {
   const circumference = 2 * Math.PI * 31;
   const offset = circumference - (progress / 100) * circumference;
+  const spokenValue = unit ? `${value}${unit}` : value;
+  const isGrade = presentation === 'grade';
   return (
-    <article className={`metric-card metric-card--${tone}`}>
-      <div className="metric-ring">
-        <svg viewBox="0 0 72 72" role="img" aria-label={`${label} ${value}${unit}`}>
-          <circle className="metric-ring__track" cx="36" cy="36" r="31" />
-          <circle
-            className="metric-ring__value"
-            cx="36"
-            cy="36"
-            r="31"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-          />
-        </svg>
-        <strong><span>{value}</span><small>{unit}</small></strong>
-      </div>
+    <article className={`metric-card metric-card--${tone} ${isGrade ? 'metric-card--grade' : ''}`}>
+      {isGrade ? (
+        <div className="metric-grade" role="img" aria-label={`${label} ${spokenValue}`}><strong>{value}</strong></div>
+      ) : (
+        <div className="metric-ring">
+          <svg viewBox="0 0 72 72" role="img" aria-label={`${label} ${spokenValue}`}>
+            <circle className="metric-ring__track" cx="36" cy="36" r="31" />
+            <circle
+              className="metric-ring__value"
+              cx="36"
+              cy="36"
+              r="31"
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+            />
+          </svg>
+          <strong><span>{value}</span>{unit && <small>{unit}</small>}</strong>
+        </div>
+      )}
       <h3>{label}</h3>
       <p>{note}</p>
     </article>
@@ -659,9 +679,9 @@ function AbilityView({ onBack, onNext }) {
     <section className="page page--light ability-page page--with-action">
       <div className="ability-hero">
         <p className="eyebrow">能力对接 · 科技特长生培养路径</p>
-        <h1>能力对接科特班</h1>
+        <h1>能力对接<span>科特班</span></h1>
         <p>
-          科特班是编程猫（深圳点猫科技有限公司）内部“科技特长生专项培养计划”，该计划成立于2017年，经过9年的历程，累计为全国512所重点初中、479所重点高中输送1万余名优秀学员，口碑卓著。由此，“科特班”被誉为少儿编程行业的黄埔军校。
+          科特班是编程猫（深圳点猫科技有限公司）内部“<span className="ability-hero__highlight">科技特长生专项培养计划</span>”，该计划成立于2017年，经过9年的历程，累计为全国512所重点初中、479所重点高中输送1万余名优秀学员，口碑卓著。<span className="ability-hero__conclusion">由此，“科特班”被誉为少儿编程行业的黄埔军校。</span>
         </p>
       </div>
 
@@ -728,7 +748,7 @@ function RoadmapView({ onBack, onNext }) {
         </div>
       </section>
 
-      <BottomAction label="进入家庭学习共识" icon={ArrowRight} onClick={onNext} secondaryAction={onBack} />
+      <BottomAction label="查看编程猫课程模式" icon={ArrowRight} onClick={onNext} secondaryAction={onBack} />
     </section>
   );
 }
