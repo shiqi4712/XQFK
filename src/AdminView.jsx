@@ -30,9 +30,9 @@ import {
 const DEFAULT_TEACHER_PASSWORD = 'bcm666';
 
 const STUDENT_COLUMN_ALIASES = {
-  studentId: ['学生id', '学员id', '学生编号', 'studentid'],
+  studentId: ['用户id', '用户编号', '学生id', '学员id', '学生编号', 'studentid'],
   name: ['学员姓名', '学生姓名', '姓名', 'name'],
-  teacherAccount: ['老师账号', '教师账号', '班主任账号', 'teacheraccount'],
+  teacherAccount: ['老师姓名', '教师姓名', '班主任姓名', '老师账号', '教师账号', '班主任账号', 'teacheraccount'],
   level: ['课程级别', '课程等级', 'level'],
   courseLine: ['课线', '所属课线', '课程线', '课程产品线', '产品线', 'courseline'],
   teamLeader: ['组长', '所属组长', '组长姓名', '团队组长', 'teamleader'],
@@ -43,7 +43,6 @@ const STUDENT_COLUMN_ALIASES = {
 };
 
 const TEACHER_COLUMN_ALIASES = {
-  account: ['老师账号', '教师账号', '账号', 'account'],
   displayName: ['老师姓名', '教师姓名', '姓名', 'displayname', 'name'],
 };
 
@@ -93,10 +92,12 @@ function invalidRowsError(headers, failures, subject) {
 
 function rowsToStudents(rows, requireTeacherAccount) {
   const { headers, columns, dataRows } = parseRows(rows, STUDENT_COLUMN_ALIASES);
-  if (columns.studentId < 0 || columns.name < 0 || (requireTeacherAccount && columns.teacherAccount < 0)) {
-    throw new Error(requireTeacherAccount
-      ? '表格必须包含“学生ID”“学员姓名”“老师账号”三列'
-      : '表格必须包含“学生ID”和“学员姓名”两列');
+  const requiredAdminColumns = ['studentId', 'name', 'teacherAccount', 'courseLine', 'teamLeader', 'submittedAssignments'];
+  if (requireTeacherAccount && requiredAdminColumns.some((field) => columns[field] < 0)) {
+    throw new Error('表格必须包含“用户ID”“学员姓名”“老师姓名”“课线”“组长”“作业提交数”六列');
+  }
+  if (columns.studentId < 0 || columns.name < 0) {
+    throw new Error('表格必须包含“用户ID”和“学员姓名”两列');
   }
 
   const failures = [];
@@ -121,11 +122,11 @@ function rowsToStudents(rows, requireTeacherAccount) {
     if (columns.teamLeader >= 0) student.teamLeader = String(valueAt('teamLeader') ?? '').trim();
     const assignmentInvalid = !Number.isInteger(importedAssignments) || importedAssignments < 0 || importedAssignments > 3;
     const reason = !student.studentId
-      ? '缺少学生ID'
+      ? '缺少用户ID'
       : !student.name
         ? '缺少学员姓名'
         : requireTeacherAccount && !student.teacherAccount
-          ? '缺少老师账号'
+          ? '缺少老师姓名'
           : assignmentInvalid
             ? '作业提交数必须是0、1、2或3'
             : '';
@@ -138,26 +139,24 @@ function rowsToStudents(rows, requireTeacherAccount) {
 
 function rowsToTeachers(rows) {
   const { headers, columns, dataRows } = parseRows(rows, TEACHER_COLUMN_ALIASES);
-  if (columns.account < 0 || columns.displayName < 0) {
-    throw new Error('表格必须包含“老师账号”和“老师姓名”两列');
+  if (columns.displayName < 0) {
+    throw new Error('表格必须包含“老师姓名”列');
   }
 
   const failures = [];
   const seen = new Set();
   const teachers = dataRows.map(({ row, rowNumber }) => {
-    const account = String(row[columns.account] ?? '').trim().toLowerCase();
     const displayName = String(row[columns.displayName] ?? '').trim();
+    const account = displayName.toLowerCase();
     const duplicate = seen.has(account);
     if (account) seen.add(account);
-    const reason = !account
-      ? '缺少老师账号'
-      : !/^[a-z0-9._-]{3,40}$/.test(account)
-        ? '账号仅支持3-40位小写字母、数字、点、横线或下划线'
-        : !displayName
-          ? '缺少老师姓名'
-          : duplicate
-            ? '表格中账号重复'
-            : '';
+    const reason = !displayName
+      ? '缺少老师姓名'
+      : !/^[\p{L}\p{N}._·-]{2,40}$/u.test(account)
+        ? '老师姓名需为2-40位文字、字母或数字，可包含点、横线或下划线'
+        : duplicate
+          ? '表格中老师姓名重复'
+          : '';
     if (reason) failures.push({ row, rowNumber, reason });
     return { account, displayName };
   });
@@ -483,7 +482,7 @@ function TeacherWorkspace({ teachers, loading, selectedIds, onSelectionChange, o
         <div><p>ACCOUNT DIRECTORY</p><h2 id="teacher-management-title">账号与权限管理</h2></div>
         <div className="admin-toolbar__actions">
           <button type="button" className="admin-icon-button" onClick={onRefresh} aria-label="刷新账号" title="刷新账号"><RefreshCw size={17} /></button>
-          <button type="button" className="admin-download-button" onClick={() => downloadCsvFile([{ 老师账号: 'teacher03', 老师姓名: '陈老师' }], '老师账号导入模板.csv')}><FileDown size={17} /><span>老师模板</span></button>
+          <button type="button" className="admin-download-button" onClick={() => downloadCsvFile([{ 老师姓名: '陈老师' }], '老师名单导入模板.csv')}><FileDown size={17} /><span>老师模板</span></button>
           <button type="button" className="admin-import-button" onClick={() => teacherInputRef.current?.click()}><Upload size={17} /><span>导入老师</span></button>
           <button type="button" className="admin-download-button" onClick={() => downloadCsvFile([{ 管理员账号: 'admin02', 管理员姓名: '运营管理员', 初始密码: '请替换为至少10位密码' }], '管理员账号导入模板.csv')}><FileDown size={17} /><span>管理员模板</span></button>
           <button type="button" className="admin-add-button" onClick={onAddAdministrator}><ShieldPlus size={17} /><span>新增管理员</span></button>
@@ -492,7 +491,7 @@ function TeacherWorkspace({ teachers, loading, selectedIds, onSelectionChange, o
           <input ref={administratorInputRef} type="file" accept=".xlsx,.csv" onChange={onImportAdministrators} hidden />
         </div>
       </header>
-      <div className="admin-import-note admin-import-note--password"><KeyRound size={16} /><p>普通老师默认密码为 <strong>{DEFAULT_TEACHER_PASSWORD}</strong>；管理员导入表必须提供至少 10 位初始密码。管理员拥有全部学生及账号管理权限。</p></div>
+      <div className="admin-import-note admin-import-note--password"><KeyRound size={16} /><p>老师姓名同时作为登录账号，默认密码为 <strong>{DEFAULT_TEACHER_PASSWORD}</strong>；管理员导入表必须提供至少 10 位初始密码。</p></div>
       {message && <MessageBar message={message} />}
       <div className="admin-bulkbar">
         <label><input type="checkbox" checked={allSelected} onChange={(event) => onSelectionChange(event.target.checked ? regularTeachers.map((teacher) => teacher.teacherId) : [])} /><span>全选普通老师</span></label>
@@ -563,13 +562,13 @@ function StudentWorkspace({ session, students, teachers, importBatches, loading,
         <div className="admin-toolbar__actions">
           <button type="button" className="admin-icon-button" onClick={onRefresh} aria-label="刷新学生数据" title="刷新学生数据"><RefreshCw size={17} /></button>
           <button type="button" className="admin-download-button" onClick={onDownload} disabled={downloading || loading}><Download size={17} /><span>{downloading ? '正在生成' : '下载数据'}</span></button>
-          {isAdmin && <button type="button" className="admin-download-button" onClick={() => downloadCsvFile([{ 学生ID: 'STU0004', 学员姓名: '示例学生', 老师账号: 'teacher01', 课程级别: '图形化一级', 课线: '图形化编程', 组长: '张组长', 课表ID: '', 最近课程数: 3, 作业提交数: 3, 学习时长: 6.5 }], '学生名单导入模板.csv')}><FileDown size={17} /><span>下载模板</span></button>}
+          {isAdmin && <button type="button" className="admin-download-button" onClick={() => downloadCsvFile([{ 用户ID: 'STU0004', 学员姓名: '示例学生', 老师姓名: '陈老师', 课线: '图形化编程', 组长: '张组长', 作业提交数: 3 }], '学生名单导入模板.csv')}><FileDown size={17} /><span>下载模板</span></button>}
           {isAdmin && <button type="button" className="admin-import-button" onClick={() => inputRef.current?.click()} disabled={importing}><Upload size={17} /><span>{importing ? '正在导入' : '批量导入学生'}</span></button>}
           <button type="button" className="admin-add-button" onClick={onAddStudent}><Plus size={17} /><span>单个新增</span></button>
           <input ref={inputRef} type="file" accept=".xlsx,.csv" onChange={onImport} hidden />
         </div>
       </header>
-      <div className="admin-import-note"><FileSpreadsheet size={16} /><p>{isAdmin ? '管理员导入表需包含学生ID、学员姓名、老师账号；课线和组长按表格内容写入学员明细。' : `新增学生会自动归属 ${session.displayName}，您只能查看和维护自己的学生。`} 作业提交数为 0 时按 33% 展示，代码正确率固定为 100%。</p></div>
+      <div className="admin-import-note"><FileSpreadsheet size={16} /><p>{isAdmin ? '学生表需包含用户ID、学员姓名、老师姓名、课线、组长和作业提交数。' : `新增学生会自动归属 ${session.displayName}，您只能查看和维护自己的学生。`} 作业提交数填 0、1、2 或 3；填 0 时按 33% 展示，代码正确率固定为 100%。</p></div>
       {importBatches.length > 0 && <div className="admin-import-history" aria-label="最近导入记录"><strong>最近导入</strong>{importBatches.slice(0, 3).map((batch) => <span key={batch.batchId}>{batch.fileName || '未命名表格'} · {batch.importedCount} 条 · {formatDate(batch.createdAt)}</span>)}</div>}
       {message && <MessageBar message={message} />}
       <div className="admin-filterbar">
