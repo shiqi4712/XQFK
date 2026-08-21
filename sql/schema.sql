@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS teachers (
   display_name VARCHAR(80) NOT NULL,
   password_salt CHAR(32) NOT NULL,
   password_hash CHAR(128) NOT NULL,
+  role ENUM('admin', 'teacher') NOT NULL DEFAULT 'teacher',
   active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
@@ -15,6 +16,8 @@ CREATE TABLE IF NOT EXISTS students (
   report_code VARCHAR(64) NOT NULL UNIQUE,
   name VARCHAR(80) NOT NULL,
   level VARCHAR(120) NOT NULL DEFAULT '',
+  course_line VARCHAR(120) NOT NULL DEFAULT '',
+  team_leader VARCHAR(80) NOT NULL DEFAULT '',
   schedule_id VARCHAR(80) NOT NULL DEFAULT '',
   learning_data JSON NOT NULL,
   viewed_at DATETIME(3) NULL,

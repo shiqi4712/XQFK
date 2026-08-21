@@ -7,9 +7,9 @@ import { promisify } from 'node:util';
 
 const scrypt = promisify(scryptCallback);
 
-export async function hashPassword(password) {
+export async function hashPassword(password, minimumLength = 10) {
   const value = String(password || '');
-  if (value.length < 10) throw new Error('密码至少需要 10 个字符');
+  if (value.length < minimumLength) throw new Error(`密码至少需要 ${minimumLength} 个字符`);
   const salt = randomBytes(16).toString('hex');
   const hash = await scrypt(value, salt, 64);
   return { salt, hash: hash.toString('hex') };

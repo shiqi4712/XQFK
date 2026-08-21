@@ -31,6 +31,8 @@ try {
   } else if (command === 'create') {
     const account = requireOption(options, 'account').toLowerCase();
     const displayName = requireOption(options, 'name');
+    const role = String(options.role || 'teacher').toLowerCase();
+    if (!['admin', 'teacher'].includes(role)) throw new Error('--role must be admin or teacher');
     const password = String(process.env.TEACHER_PASSWORD || '');
     if (!password) throw new Error('Set TEACHER_PASSWORD before creating a teacher');
     const credentials = await hashPassword(password);
@@ -38,6 +40,7 @@ try {
       teacherId: createTeacherId(),
       account,
       displayName,
+      role,
       passwordSalt: credentials.salt,
       passwordHash: credentials.hash,
     });
@@ -56,7 +59,7 @@ try {
     await store.updateTeacherPassword(teacher.teacherId, credentials.salt, credentials.hash);
     console.log(`Password reset for ${teacher.account}`);
   } else {
-    throw new Error('Usage: npm run teacher -- <list|create|enable|disable|reset> [--account value] [--name value]');
+    throw new Error('Usage: npm run teacher -- <list|create|enable|disable|reset> [--account value] [--name value] [--role admin|teacher]');
   }
 } catch (error) {
   console.error(error.message);

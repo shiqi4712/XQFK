@@ -1,0 +1,3 @@
+ALTER TABLE students
+  ADD COLUMN course_line VARCHAR(120) NOT NULL DEFAULT '' AFTER level,
+  ADD COLUMN team_leader VARCHAR(80) NOT NULL DEFAULT '' AFTER course_line;
