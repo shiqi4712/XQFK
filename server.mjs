@@ -14,9 +14,6 @@ const sessionCookieName = 'teacher_session';
 const sessionDurationSeconds = 8 * 60 * 60;
 const sessionSecret = process.env.SESSION_SECRET || 'local-development-secret-change-before-deploying';
 const isProduction = process.env.NODE_ENV === 'production';
-const allowLegacyStudentIdLogin = process.env.ALLOW_LEGACY_STUDENT_ID_LOGIN
-  ? process.env.ALLOW_LEGACY_STUDENT_ID_LOGIN === 'true'
-  : !isProduction;
 const store = await createDataStore();
 const defaultTeacherPassword = 'bcm666';
 
@@ -161,12 +158,11 @@ function csvCell(value) {
 
 function studentsToCsv(students) {
   const headers = [
-    '学生ID', '报告访问码', '学员姓名', '课程级别', '课线', '组长', '课表ID', '最近课程数', '已提交作业', '作业总数',
+    '用户ID', '学员姓名', '课程级别', '课线', '组长', '课表ID', '最近课程数', '已提交作业', '作业总数',
     '代码正确率', '学习时长', '家长查看状态', '查看时间', '学位状态', '锁定时间', '上课星期', '上课时间',
   ];
   const rows = students.map((student) => [
     student.studentId,
-    student.reportCode,
     student.name,
     student.level,
     student.courseLine,
@@ -454,20 +450,20 @@ app.post('/api/admin/teachers/:teacherId/active', requireTeacher, requireAdmin, 
   }
 });
 
-app.get('/api/students/:accessKey', studentAccessLimiter, async (request, response, next) => {
+app.get('/api/students/:studentId', studentAccessLimiter, async (request, response, next) => {
   try {
-    const accessKey = request.params.accessKey.trim();
-    const student = await store.getStudentByAccess(accessKey, allowLegacyStudentIdLogin);
-    if (!student) return response.status(404).json({ message: '未找到匹配学生，请核对报告访问码' });
+    const studentId = request.params.studentId.trim().toUpperCase();
+    const student = await store.getStudentById(studentId);
+    if (!student) return response.status(404).json({ message: '未找到匹配学生，请核对用户 ID' });
     return response.json({ student: publicStudent(student) });
   } catch (error) {
     return next(error);
   }
 });
 
-app.post('/api/students/:accessKey/viewed', studentAccessLimiter, async (request, response, next) => {
+app.post('/api/students/:studentId/viewed', studentAccessLimiter, async (request, response, next) => {
   try {
-    const student = await store.getStudentByAccess(request.params.accessKey.trim(), allowLegacyStudentIdLogin);
+    const student = await store.getStudentById(request.params.studentId.trim().toUpperCase());
     if (!student) return response.status(404).json({ message: '未找到匹配学生' });
     const updated = await store.markStudentViewed(student.studentId);
     audit({ teacherId: student.teacherId, action: 'parent.report_viewed', targetType: 'student', targetId: student.studentId, metadata: {}, ipAddress: requestIp(request) });
@@ -477,9 +473,9 @@ app.post('/api/students/:accessKey/viewed', studentAccessLimiter, async (request
   }
 });
 
-app.post('/api/students/:accessKey/seat-lock', studentAccessLimiter, async (request, response, next) => {
+app.post('/api/students/:studentId/seat-lock', studentAccessLimiter, async (request, response, next) => {
   try {
-    const student = await store.getStudentByAccess(request.params.accessKey.trim(), allowLegacyStudentIdLogin);
+    const student = await store.getStudentById(request.params.studentId.trim().toUpperCase());
     if (!student) return response.status(404).json({ message: '未找到匹配学生' });
     const selection = {
       day: String(request.body.day || '').trim(),

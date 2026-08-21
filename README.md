@@ -40,4 +40,4 @@ git lfs pull
 - [阿里云 Ubuntu、RDS 与 OSS 部署指南](DEPLOYMENT.md)
 - [上线待办与优先级](TODO.md)
 
-生产环境必须设置强随机 `SESSION_SECRET`，使用随机报告访问码，并保持 `ALLOW_LEGACY_STUDENT_ID_LOGIN=false`。不要把数据库密码、OSS AccessKey、学生数据或教师密码文件提交到仓库。
+生产环境必须设置强随机 `SESSION_SECRET`。家长使用导入名单中的用户 ID 查看报告；不要把数据库密码、OSS AccessKey、学生数据或教师密码文件提交到仓库。

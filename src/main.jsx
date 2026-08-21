@@ -272,23 +272,22 @@ function App() {
 
   const enterReport = async (event) => {
     event.preventDefault();
-    const accessKey = studentId.trim();
-    if (!accessKey) {
-      setLoginError('请输入报告访问码');
+    const normalizedStudentId = studentId.trim().toUpperCase();
+    if (!normalizedStudentId) {
+      setLoginError('请输入用户 ID');
       return;
     }
 
     setLoginPending(true);
     try {
-      const studentResponse = await fetch(`/api/students/${encodeURIComponent(accessKey)}`);
+      const studentResponse = await fetch(`/api/students/${encodeURIComponent(normalizedStudentId)}`);
       const studentResult = await studentResponse.json();
-      if (!studentResponse.ok) throw new Error(studentResult.message || '未找到匹配学生，请核对报告访问码');
+      if (!studentResponse.ok) throw new Error(studentResult.message || '未找到匹配学生，请核对用户 ID');
 
       const matchedStudent = studentResult.student;
-      setStudentId(accessKey);
+      setStudentId(normalizedStudentId);
       setStudent({
         ...matchedStudent,
-        accessKey,
         learningReport: createLearningReport(matchedStudent.learningData, matchedStudent.studentId),
       });
       setLoginError('');
@@ -296,7 +295,7 @@ function App() {
       setReserved(Boolean(matchedStudent.seatLocked));
       setView('analytics');
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      fetch(`/api/students/${encodeURIComponent(accessKey)}/viewed`, { method: 'POST' }).catch(() => undefined);
+      fetch(`/api/students/${encodeURIComponent(normalizedStudentId)}/viewed`, { method: 'POST' }).catch(() => undefined);
     } catch (error) {
       setLoginError(error.message);
     } finally {
@@ -316,7 +315,7 @@ function App() {
 
   const reserveSeat = async (selection) => {
     try {
-      const response = await fetch(`/api/students/${encodeURIComponent(student.accessKey)}/seat-lock`, {
+      const response = await fetch(`/api/students/${encodeURIComponent(student.studentId)}/seat-lock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(selection),
@@ -413,15 +412,15 @@ function LoginView({ studentId, setStudentId, loginError, loginPending, onSubmit
         <form className="glass-login" onSubmit={onSubmit}>
           <div>
             <h2>查看专属学习计划</h2>
-            <p>输入老师提供的报告访问码</p>
+            <p>输入老师提供的用户 ID</p>
           </div>
           <label className={`id-field ${loginError ? 'is-error' : ''}`}>
             <Fingerprint size={19} />
             <input
               value={studentId}
               onChange={(event) => setStudentId(event.target.value)}
-              placeholder="例如：RP-Ab12Cd34Ef56"
-              aria-label="报告访问码"
+              placeholder="请输入用户 ID"
+              aria-label="用户 ID"
               aria-invalid={Boolean(loginError)}
               aria-describedby={loginError ? 'login-error' : undefined}
               autoComplete="off"
