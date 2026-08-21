@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import readXlsxFile from 'read-excel-file/browser';
 import Papa from 'papaparse';
+import writeXlsxFile from 'write-excel-file/browser';
 import {
   BadgeCheck,
   Ban,
@@ -69,7 +70,11 @@ function findColumn(headers, aliases) {
 }
 
 function normalizeSpreadsheetRows(result) {
-  const sourceRows = Array.isArray(result) ? result : result?.rows;
+  const workbookSheet = Array.isArray(result)
+    ? result.find((item) => item && !Array.isArray(item) && Array.isArray(item.data))
+    : null;
+  const sourceRows = workbookSheet?.data
+    ?? (Array.isArray(result) ? result : result?.rows ?? result?.data);
   if (!Array.isArray(sourceRows)) {
     throw new Error('无法识别表格内容。请使用系统模板，并保存为 .xlsx 或 UTF-8 编码的 .csv 文件。');
   }
@@ -237,16 +242,14 @@ function rowsToAdministrators(rows) {
 }
 
 async function readSpreadsheet(file) {
-  if (file.name.toLowerCase().endsWith('.csv')) {
-    const result = Papa.parse(await file.text(), { skipEmptyLines: 'greedy' });
-    if (result.errors.length) throw new Error(`CSV 解析失败：${result.errors[0].message}`);
-    return normalizeSpreadsheetRows(result.data);
+  if (!file.name.toLowerCase().endsWith('.xlsx')) {
+    throw new Error('仅支持上传 .xlsx 文件，请下载系统模板并使用 Excel 格式填写后重试。');
   }
   try {
     return normalizeSpreadsheetRows(await readXlsxFile(file));
   } catch (error) {
     if (error.message?.startsWith('无法识别表格内容')) throw error;
-    throw new Error('Excel 文件无法读取。请将文件另存为 .xlsx 后重试，或使用系统下载的 CSV 模板。');
+    throw new Error('Excel 文件无法读取。请确认文件是有效的 .xlsx 工作簿，或重新下载系统模板后填写。');
   }
 }
 
@@ -271,6 +274,23 @@ function downloadCsvFile(rows, fileName) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+async function downloadXlsxTemplate(rows, fileName) {
+  const headers = Object.keys(rows[0] || {});
+  const sheetData = [
+    headers.map((value) => ({
+      value,
+      fontWeight: 'bold',
+      backgroundColor: '#E6F4F1',
+      align: 'center',
+    })),
+    ...rows.map((row) => headers.map((header) => ({ value: row[header] ?? '' }))),
+  ];
+  await writeXlsxFile(sheetData, {
+    columns: headers.map((header) => ({ width: Math.max(14, header.length + 6) })),
+    stickyRowsCount: 1,
+  }).toFile(fileName);
 }
 
 function StatusCell({ active, activeLabel, inactiveLabel, timestamp }) {
@@ -527,16 +547,16 @@ function TeacherWorkspace({ teachers, loading, selectedIds, onSelectionChange, o
         <div><p>ACCOUNT DIRECTORY</p><h2 id="teacher-management-title">账号与权限管理</h2></div>
         <div className="admin-toolbar__actions">
           <button type="button" className="admin-icon-button" onClick={onRefresh} aria-label="刷新账号" title="刷新账号"><RefreshCw size={17} /></button>
-          <button type="button" className="admin-download-button" onClick={() => downloadCsvFile([{ 老师姓名: '陈老师' }], '老师名单导入模板.csv')}><FileDown size={17} /><span>老师模板</span></button>
+          <button type="button" className="admin-download-button" onClick={() => downloadXlsxTemplate([{ 老师姓名: '陈老师' }], '老师名单导入模板.xlsx')}><FileDown size={17} /><span>老师模板</span></button>
           <button type="button" className="admin-import-button" onClick={() => teacherInputRef.current?.click()}><Upload size={17} /><span>导入老师</span></button>
-          <button type="button" className="admin-download-button" onClick={() => downloadCsvFile([{ 管理员账号: 'admin02', 管理员姓名: '运营管理员', 初始密码: '请替换为至少10位密码' }], '管理员账号导入模板.csv')}><FileDown size={17} /><span>管理员模板</span></button>
+          <button type="button" className="admin-download-button" onClick={() => downloadXlsxTemplate([{ 管理员账号: 'admin02', 管理员姓名: '运营管理员', 初始密码: '请替换为至少10位密码' }], '管理员账号导入模板.xlsx')}><FileDown size={17} /><span>管理员模板</span></button>
           <button type="button" className="admin-add-button" onClick={onAddAdministrator}><ShieldPlus size={17} /><span>新增管理员</span></button>
           <button type="button" className="admin-admin-import-button" onClick={() => administratorInputRef.current?.click()}><Upload size={17} /><span>导入管理员</span></button>
-          <input ref={teacherInputRef} type="file" accept=".xlsx,.csv" onChange={onImport} hidden />
-          <input ref={administratorInputRef} type="file" accept=".xlsx,.csv" onChange={onImportAdministrators} hidden />
+          <input ref={teacherInputRef} type="file" accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xlsx" onChange={onImport} hidden />
+          <input ref={administratorInputRef} type="file" accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xlsx" onChange={onImportAdministrators} hidden />
         </div>
       </header>
-      <div className="admin-import-note admin-import-note--password"><KeyRound size={16} /><p>老师姓名同时作为登录账号，默认密码为 <strong>{DEFAULT_TEACHER_PASSWORD}</strong>；管理员导入表必须提供至少 10 位初始密码。</p></div>
+      <div className="admin-import-note admin-import-note--password"><KeyRound size={16} /><p>账号批量导入仅支持 .xlsx 文件。老师姓名同时作为登录账号，默认密码为 <strong>{DEFAULT_TEACHER_PASSWORD}</strong>；管理员导入表必须提供至少 10 位初始密码。</p></div>
       {message && <MessageBar message={message} />}
       <div className="admin-bulkbar">
         <label><input type="checkbox" checked={allSelected} onChange={(event) => onSelectionChange(event.target.checked ? regularTeachers.map((teacher) => teacher.teacherId) : [])} /><span>全选普通老师</span></label>
@@ -607,13 +627,13 @@ function StudentWorkspace({ session, students, teachers, importBatches, loading,
         <div className="admin-toolbar__actions">
           <button type="button" className="admin-icon-button" onClick={onRefresh} aria-label="刷新学生数据" title="刷新学生数据"><RefreshCw size={17} /></button>
           <button type="button" className="admin-download-button" onClick={onDownload} disabled={downloading || loading}><Download size={17} /><span>{downloading ? '正在生成' : '下载数据'}</span></button>
-          {isAdmin && <button type="button" className="admin-download-button" onClick={() => downloadCsvFile([{ 用户ID: 'STU0004', 学员姓名: '示例学生', 老师姓名: '陈老师', 课线: '图形化编程', 组长: '张组长', 作业提交数: 3 }], '学生名单导入模板.csv')}><FileDown size={17} /><span>下载模板</span></button>}
+          {isAdmin && <button type="button" className="admin-download-button" onClick={() => downloadXlsxTemplate([{ 用户ID: 'STU0004', 学员姓名: '示例学生', 老师姓名: '陈老师', 课线: '图形化编程', 组长: '张组长', 作业提交数: 3 }], '学生名单导入模板.xlsx')}><FileDown size={17} /><span>下载模板</span></button>}
           {isAdmin && <button type="button" className="admin-import-button" onClick={() => inputRef.current?.click()} disabled={importing}><Upload size={17} /><span>{importing ? '正在导入' : '批量导入学生'}</span></button>}
           <button type="button" className="admin-add-button" onClick={onAddStudent}><Plus size={17} /><span>单个新增</span></button>
-          <input ref={inputRef} type="file" accept=".xlsx,.csv" onChange={onImport} hidden />
+          <input ref={inputRef} type="file" accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xlsx" onChange={onImport} hidden />
         </div>
       </header>
-      <div className="admin-import-note"><FileSpreadsheet size={16} /><p>{isAdmin ? '学生表需包含用户ID、学员姓名、老师姓名、课线、组长和作业提交数。' : `新增学生会自动归属 ${session.displayName}，您只能查看和维护自己的学生。`} 作业提交数填 0、1、2 或 3；填 0 时按 33% 展示，代码正确率固定为 100%。</p></div>
+      <div className="admin-import-note"><FileSpreadsheet size={16} /><p>{isAdmin ? '仅支持 .xlsx 文件。学生表需包含用户ID、学员姓名、老师姓名、课线、组长和作业提交数。' : `新增学生会自动归属 ${session.displayName}，您只能查看和维护自己的学生。`} 作业提交数填 0、1、2 或 3；填 0 时按 33% 展示，代码正确率固定为 100%。</p></div>
       {importBatches.length > 0 && <div className="admin-import-history" aria-label="最近导入记录"><strong>最近导入</strong>{importBatches.slice(0, 3).map((batch) => <span key={batch.batchId}>{batch.fileName || '未命名表格'} · {batch.importedCount} 条 · {formatDate(batch.createdAt)}</span>)}</div>}
       {message && <MessageBar message={message} />}
       <div className="admin-filterbar">

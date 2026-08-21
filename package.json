@@ -26,6 +26,7 @@
     "react-dom": "latest",
     "read-excel-file": "^9.3.10",
     "tailwindcss": "latest",
-    "vite": "latest"
+    "vite": "latest",
+    "write-excel-file": "^4.1.1"
   }
 }
