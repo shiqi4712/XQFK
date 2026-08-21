@@ -131,7 +131,6 @@ sudo nano /etc/learning-report/learning-report.env
 - `DB_HOST`：同机使用 `127.0.0.1`，RDS 使用内网地址
 - `DB_PASSWORD`：应用数据库密码
 - `DB_SSL`：RDS 要求 TLS 时设为 `true`
-- `ALLOW_LEGACY_STUDENT_ID_LOGIN=false`
 - `DB_AUTO_MIGRATE=false`
 
 环境文件只存放在 `/etc/learning-report`，不要提交到代码仓库或放进前端目录。
@@ -272,12 +271,12 @@ sudo /usr/local/sbin/learning-report-restore-check /var/backups/learning-report/
 
 1. `https://正式域名/api/health` 返回 `storage=mysql`。
 2. 管理员登录 `/admin` 后能看到老师账号管理和全部学生数据。
-3. 管理员能通过 XLSX/CSV 批量创建老师账号、重置默认密码、启停账号；仍有关联学生的老师不能删除。
+3. 管理员能通过 XLSX 批量创建老师账号、重置默认密码、启停账号；仍有关联学生的老师不能删除。
 4. 管理员批量导入学生时，“老师姓名”列能正确匹配同名登录账号并分配学生。
 5. 教师 A 通过同一 `/admin` 入口登录，只能看到、搜索、下载自己的学生，并且每次只能新增一名学生。
 6. 教师 B 无法读取或覆盖教师 A 的学生，也无法访问老师账号管理 API。
-7. XLSX/CSV 导入成功，错误行能下载失败记录。
-8. 家长使用随机报告访问码进入，学生 ID 不能直接登录。
+7. XLSX 导入成功，错误行能下载失败记录。
+8. 家长使用导入名单中的用户 ID 进入对应学习报告。
 9. 家长查看报告后后台显示“已查看”；选择时间并锁定名额后显示“已锁定”。
 10. 图片和视频请求来自 OSS/CDN，页面不暴露 AccessKey。
 11. HTTPS、证书自动续期、每日备份和恢复演练均正常。

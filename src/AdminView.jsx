@@ -601,7 +601,7 @@ function MessageBar({ message }) {
   );
 }
 
-function StudentWorkspace({ session, students, teachers, importBatches, loading, importing, downloading, message, query, setQuery, statusFilter, setStatusFilter, onImport, onDownload, onRefresh, onAddStudent, onCopyCode }) {
+function StudentWorkspace({ session, students, teachers, importBatches, loading, importing, downloading, message, query, setQuery, statusFilter, setStatusFilter, onImport, onDownload, onRefresh, onAddStudent, onCopyStudentId }) {
   const isAdmin = session.role === 'admin';
   const inputRef = useRef(null);
   const teacherById = useMemo(() => new Map(teachers.map((teacher) => [teacher.teacherId, teacher])), [teachers]);
@@ -609,7 +609,7 @@ function StudentWorkspace({ session, students, teachers, importBatches, loading,
     const keyword = query.trim().toLowerCase();
     return students.filter((student) => {
       const owner = teacherById.get(student.teacherId);
-      const matchesKeyword = !keyword || [student.name, student.studentId, student.reportCode, student.level, student.courseLine, student.teamLeader, owner?.displayName, owner?.account]
+      const matchesKeyword = !keyword || [student.name, student.studentId, student.level, student.courseLine, student.teamLeader, owner?.displayName, owner?.account]
         .some((value) => String(value || '').toLowerCase().includes(keyword));
       const matchesStatus = statusFilter === 'all'
         || (statusFilter === 'unviewed' && !student.viewedAt)
@@ -650,7 +650,7 @@ function StudentWorkspace({ session, students, teachers, importBatches, loading,
               return (
                 <tr key={student.studentId}>
                   {isAdmin && <td className={`admin-structure-cell ${student.courseLine ? '' : 'is-empty'}`}><strong>{student.courseLine || '未填写'}</strong></td>}
-                  <td><strong>{student.name}</strong><span>{student.studentId}</span><button type="button" className="admin-report-code" onClick={() => onCopyCode(student.reportCode)} title="复制报告访问码"><code>{student.reportCode}</code><Copy size={11} /></button><small>{student.level || '未设置课程级别'}</small></td>
+                  <td><strong>{student.name}</strong><button type="button" className="admin-report-code" onClick={() => onCopyStudentId(student.studentId)} title="复制用户 ID"><code>{student.studentId}</code><Copy size={11} /></button><small>{student.level || '未设置课程级别'}</small></td>
                   {isAdmin && <td><strong>{owner?.displayName || '未知老师'}</strong><span>{owner?.account || student.teacherId}</span></td>}
                   {isAdmin && <td className={`admin-structure-cell ${student.teamLeader ? '' : 'is-empty'}`}><strong>{student.teamLeader || '未填写'}</strong></td>}
                   <td><strong>{student.learningData.submittedAssignments}/3 次作业</strong><span>代码 100% · {student.learningData.studyHours} 小时</span></td>
@@ -868,12 +868,12 @@ export default function AdminView() {
     }
   };
 
-  const copyReportCode = async (reportCode) => {
+  const copyStudentId = async (studentId) => {
     try {
-      await navigator.clipboard.writeText(reportCode);
-      setMessage({ type: 'success', text: `报告访问码 ${reportCode} 已复制。` });
+      await navigator.clipboard.writeText(studentId);
+      setMessage({ type: 'success', text: `用户 ID ${studentId} 已复制。` });
     } catch {
-      setMessage({ type: 'error', text: '无法自动复制，请手动选择访问码。' });
+      setMessage({ type: 'error', text: '无法自动复制，请手动选择用户 ID。' });
     }
   };
 
@@ -915,7 +915,7 @@ export default function AdminView() {
         {isAdmin && activeTab === 'teachers' ? (
           <TeacherWorkspace teachers={teachers} loading={loading} selectedIds={selectedTeacherIds} onSelectionChange={setSelectedTeacherIds} onImport={importTeachers} onImportAdministrators={importAdministrators} onAddAdministrator={() => setAdministratorDialogOpen(true)} onDelete={deleteTeachers} onResetPassword={resetTeacherPassword} onToggleActive={toggleTeacherActive} onRefresh={() => loadData()} message={message} />
         ) : (
-          <StudentWorkspace session={session} students={students} teachers={teachers} importBatches={importBatches} loading={loading} importing={importing} downloading={downloading} message={message} query={query} setQuery={setQuery} statusFilter={statusFilter} setStatusFilter={setStatusFilter} onImport={importStudents} onDownload={downloadStudents} onRefresh={() => loadData()} onAddStudent={() => setStudentDialogOpen(true)} onCopyCode={copyReportCode} />
+          <StudentWorkspace session={session} students={students} teachers={teachers} importBatches={importBatches} loading={loading} importing={importing} downloading={downloading} message={message} query={query} setQuery={setQuery} statusFilter={statusFilter} setStatusFilter={setStatusFilter} onImport={importStudents} onDownload={downloadStudents} onRefresh={() => loadData()} onAddStudent={() => setStudentDialogOpen(true)} onCopyStudentId={copyStudentId} />
         )}
       </section>
 
