@@ -918,7 +918,7 @@ function ConsensusView({ agreed, setAgreed, onBack, onNext }) {
           <div className="letter-seal"><HeartHandshake size={24} /></div>
           <div>
             <p>成长支持 · INVITATION</p>
-            <h1>选择编程猫的理由</h1>
+            <h1>感谢您<br />信任编程猫的课程</h1>
           </div>
           <img className="letter-mascot" src={assetUrl('codemao-trophy-mascot.png')} alt="编程猫手持奖杯与奖牌" />
         </header>
