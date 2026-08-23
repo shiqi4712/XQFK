@@ -268,11 +268,9 @@ app.get('/api/admin/audit-logs', requireTeacher, async (request, response, next)
   }
 });
 
-app.get('/api/admin/students/export.csv', requireTeacher, async (request, response, next) => {
+app.get('/api/admin/students/export.csv', requireTeacher, requireAdmin, async (request, response, next) => {
   try {
-    const students = request.teacher.role === 'admin'
-      ? await store.listAllStudents()
-      : await store.listStudentsByTeacher(request.teacher.teacherId);
+    const students = await store.listAllStudents();
     const date = new Date().toISOString().slice(0, 10);
     response.setHeader('Content-Type', 'text/csv; charset=utf-8');
     response.setHeader('Content-Disposition', `attachment; filename="students-${request.teacher.teacherId}-${date}.csv"`);
