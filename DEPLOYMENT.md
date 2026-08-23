@@ -100,19 +100,22 @@ sudo mysql learning_report < sql/schema.sql
 
 应用运行时保持 `DB_AUTO_MIGRATE=false`，避免 Node.js 账号拥有建表权限。数据库结构升级应由管理员单独执行经过审核的 SQL。
 
-如果 RDS 中已经存在旧表，不要重复执行完整建表脚本。发布本版本前由数据库管理员依次执行老师角色、学生课线与组长字段迁移：
+如果 RDS 中已经存在旧表，不要重复执行完整建表脚本。发布本版本前由数据库管理员依次执行老师角色、学生课线与组长字段、家长查看时长迁移：
 
 ```bash
 mysql --host=RDS内网地址 --user=管理员账号 -p learning_report < sql/migrations/001_add_teacher_role.sql
 mysql --host=RDS内网地址 --user=管理员账号 -p learning_report < sql/migrations/002_add_student_org_fields.sql
+mysql --host=RDS内网地址 --user=管理员账号 -p learning_report < sql/migrations/003_add_student_view_duration.sql
 ```
 
 执行后检查管理员角色：
 
 ```sql
 SELECT account, display_name, role, active FROM teachers ORDER BY role, account;
-SHOW COLUMNS FROM students WHERE Field IN ('course_line', 'team_leader');
+SHOW COLUMNS FROM students WHERE Field IN ('course_line', 'team_leader', 'view_duration_seconds');
 ```
+
+管理后台的“累计查看时长”只累计家长报告页处于前台可见状态的时间；切换到后台标签页、锁屏或离开浏览器时不计时。
 
 ## 5. 配置生产环境
 

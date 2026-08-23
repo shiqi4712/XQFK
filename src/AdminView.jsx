@@ -268,6 +268,16 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
+function formatDuration(value) {
+  const totalSeconds = Math.max(0, Math.floor(Number(value) || 0));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours) return `${hours} 小时 ${minutes} 分`;
+  if (minutes) return `${minutes} 分 ${seconds} 秒`;
+  return `${seconds} 秒`;
+}
+
 function downloadCsvFile(rows, fileName) {
   const csv = `\uFEFF${Papa.unparse(rows, { newline: '\r\n' })}`;
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -302,6 +312,17 @@ function StatusCell({ active, activeLabel, inactiveLabel, timestamp }) {
     <div className={`admin-status ${active ? 'is-active' : ''}`}>
       <strong>{active ? activeLabel : inactiveLabel}</strong>
       <span>{active ? formatDate(timestamp) : '尚未发生'}</span>
+    </div>
+  );
+}
+
+function ParentViewStatus({ timestamp, durationSeconds }) {
+  const active = Boolean(timestamp);
+  return (
+    <div className={`admin-status ${active ? 'is-active' : ''}`}>
+      <strong>{active ? '已查看' : '未查看'}</strong>
+      <span>{active ? `累计查看 ${formatDuration(durationSeconds)}` : '尚未发生'}</span>
+      {active && <small>最近查看：{formatDate(timestamp)}</small>}
     </div>
   );
 }
@@ -710,7 +731,7 @@ function StudentWorkspace({ session, students, teachers, importBatches, loading,
                   {isAdmin && <td><strong>{owner?.displayName || '未知老师'}</strong><span>{owner?.account || student.teacherId}</span></td>}
                   {isAdmin && <td className={`admin-structure-cell ${student.teamLeader ? '' : 'is-empty'}`}><strong>{student.teamLeader || '未填写'}</strong></td>}
                   <td><strong>{student.learningData.submittedAssignments}/3 次作业</strong><span>代码 100% · {student.learningData.studyHours} 小时</span></td>
-                  <td><StatusCell active={Boolean(student.viewedAt)} activeLabel="已查看" inactiveLabel="未查看" timestamp={student.viewedAt} /></td>
+                  <td><ParentViewStatus timestamp={student.viewedAt} durationSeconds={student.viewDurationSeconds} /></td>
                   <td><StatusCell active={student.seatLocked} activeLabel="已锁定" inactiveLabel="未锁定" timestamp={student.seatLockedAt} /></td>
                 </tr>
               );

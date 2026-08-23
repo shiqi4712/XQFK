@@ -637,6 +637,7 @@ button:disabled { cursor: not-allowed; }
 .admin-status strong { display: inline-block; padding: 4px 6px; border-radius: 4px; color: #7c8790; background: #eef1f3; font-size: 8px; line-height: 1; font-weight: 800; }
 .admin-status.is-active strong { color: #176f61; background: #e4f4f0; }
 .admin-status span { display: block; margin-top: 5px; color: #8b98a2; font-size: 8px; line-height: 1.4; }
+.admin-status small { display: block; margin-top: 2px; color: #9aa5ad; font-size: 7px; line-height: 1.4; }
 .admin-table-state { padding: 44px 18px; color: #7c8993; font-size: 11px; text-align: center; }
 .admin-pagination { display: flex; min-height: 48px; align-items: center; justify-content: space-between; gap: 14px; padding: 8px 18px; border-top: 1px solid #e8ecef; color: #71808c; background: #fbfcfd; }
 .admin-pagination > span { font-size: 9px; font-weight: 700; }

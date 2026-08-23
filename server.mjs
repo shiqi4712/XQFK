@@ -43,6 +43,15 @@ const studentAccessLimiter = rateLimit({
   message: { message: '访问过于频繁，请稍后再试' },
 });
 
+const viewDurationLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 80,
+  keyGenerator: (request) => String(request.params.studentId || '').trim().toUpperCase(),
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { message: '浏览时长上报过于频繁，请稍后再试' },
+});
+
 function parseCookies(header = '') {
   return Object.fromEntries(header.split(';').map((item) => {
     const separator = item.indexOf('=');
@@ -90,6 +99,7 @@ function publicStudent(student) {
   const {
     teacherId: _teacherId,
     reportCode: _reportCode,
+    viewDurationSeconds: _viewDurationSeconds,
     ...visibleStudent
   } = student;
   return visibleStudent;
@@ -159,7 +169,7 @@ function csvCell(value) {
 function studentsToCsv(students) {
   const headers = [
     '用户ID', '学员姓名', '课程级别', '课线', '组长', '课表ID', '最近课程数', '已提交作业', '作业总数',
-    '代码正确率', '学习时长', '家长查看状态', '查看时间', '学位状态', '锁定时间', '上课星期', '上课时间',
+    '代码正确率', '学习时长', '家长查看状态', '最近查看时间', '累计浏览时长（秒）', '学位状态', '锁定时间', '上课星期', '上课时间',
   ];
   const rows = students.map((student) => [
     student.studentId,
@@ -175,6 +185,7 @@ function studentsToCsv(students) {
     student.learningData.studyHours,
     student.viewedAt ? '已查看' : '未查看',
     student.viewedAt,
+    student.viewDurationSeconds || 0,
     student.seatLocked ? '已锁定' : '未锁定',
     student.seatLockedAt,
     student.selectedClassTime?.day,
@@ -466,6 +477,21 @@ app.post('/api/students/:studentId/viewed', studentAccessLimiter, async (request
     const updated = await store.markStudentViewed(student.studentId);
     audit({ teacherId: student.teacherId, action: 'parent.report_viewed', targetType: 'student', targetId: student.studentId, metadata: {}, ipAddress: requestIp(request) });
     return response.json({ student: publicStudent(updated) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post('/api/students/:studentId/view-duration', viewDurationLimiter, requireSameOrigin, async (request, response, next) => {
+  try {
+    const activeSeconds = Number(request.body.activeSeconds);
+    if (!Number.isInteger(activeSeconds) || activeSeconds < 1 || activeSeconds > 30) {
+      return response.status(400).json({ message: '浏览时长数据无效' });
+    }
+    const studentId = request.params.studentId.trim().toUpperCase();
+    const updated = await store.addStudentViewDuration(studentId, activeSeconds);
+    if (!updated) return response.status(404).json({ message: '未找到匹配学生' });
+    return response.status(204).end();
   } catch (error) {
     return next(error);
   }
