@@ -6,6 +6,8 @@ import {
   BadgeCheck,
   Ban,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Download,
   Eye,
@@ -29,6 +31,8 @@ import {
 } from 'lucide-react';
 
 const DEFAULT_TEACHER_PASSWORD = 'bcm666';
+const STUDENTS_PER_PAGE = 10;
+const TEACHERS_PER_PAGE = 20;
 
 const STUDENT_COLUMN_ALIASES = {
   studentId: ['用户id', '用户编号', '学生id', '学员id', '学生编号', 'studentid'],
@@ -538,8 +542,30 @@ function StudentDialog({ session, teachers, onClose, onSaved }) {
 function TeacherWorkspace({ teachers, loading, selectedIds, onSelectionChange, onImport, onImportAdministrators, onAddAdministrator, onDelete, onResetPassword, onToggleActive, onRefresh, message }) {
   const teacherInputRef = useRef(null);
   const administratorInputRef = useRef(null);
+  const [page, setPage] = useState(1);
+  const administrators = teachers.filter((teacher) => teacher.role === 'admin');
   const regularTeachers = teachers.filter((teacher) => teacher.role === 'teacher');
-  const allSelected = regularTeachers.length > 0 && regularTeachers.every((teacher) => selectedIds.includes(teacher.teacherId));
+  const totalPages = Math.max(1, Math.ceil(regularTeachers.length / TEACHERS_PER_PAGE));
+  const pageRegularTeachers = useMemo(
+    () => regularTeachers.slice((page - 1) * TEACHERS_PER_PAGE, page * TEACHERS_PER_PAGE),
+    [teachers, page],
+  );
+  const pageTeachers = [...administrators, ...pageRegularTeachers];
+  const pageRegularTeacherIds = pageRegularTeachers.map((teacher) => teacher.teacherId);
+  const allSelected = pageRegularTeacherIds.length > 0
+    && pageRegularTeacherIds.every((teacherId) => selectedIds.includes(teacherId));
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
+
+  const toggleCurrentPage = (checked) => {
+    if (checked) {
+      onSelectionChange([...new Set([...selectedIds, ...pageRegularTeacherIds])]);
+      return;
+    }
+    onSelectionChange(selectedIds.filter((teacherId) => !pageRegularTeacherIds.includes(teacherId)));
+  };
 
   return (
     <section className="admin-workspace" aria-labelledby="teacher-management-title">
@@ -559,7 +585,7 @@ function TeacherWorkspace({ teachers, loading, selectedIds, onSelectionChange, o
       <div className="admin-import-note admin-import-note--password"><KeyRound size={16} /><p>账号批量导入仅支持 .xlsx 文件。老师姓名同时作为登录账号，默认密码为 <strong>{DEFAULT_TEACHER_PASSWORD}</strong>；管理员导入表必须提供至少 10 位初始密码。</p></div>
       {message && <MessageBar message={message} />}
       <div className="admin-bulkbar">
-        <label><input type="checkbox" checked={allSelected} onChange={(event) => onSelectionChange(event.target.checked ? regularTeachers.map((teacher) => teacher.teacherId) : [])} /><span>全选普通老师</span></label>
+        <label><input type="checkbox" checked={allSelected} onChange={(event) => toggleCurrentPage(event.target.checked)} /><span>全选当前页老师</span></label>
         <span>已选择 {selectedIds.length} 个账号</span>
         <button type="button" className="admin-danger-button" onClick={onDelete} disabled={!selectedIds.length}><Trash2 size={15} />批量删除</button>
       </div>
@@ -567,7 +593,7 @@ function TeacherWorkspace({ teachers, loading, selectedIds, onSelectionChange, o
         <table className="admin-table admin-teacher-table">
           <thead><tr><th aria-label="选择" /><th>账号与角色</th><th>学生数据</th><th>账号状态</th><th>账号操作</th></tr></thead>
           <tbody>
-            {!loading && teachers.map((teacher) => (
+            {!loading && pageTeachers.map((teacher) => (
               <tr key={teacher.teacherId}>
                 <td>{teacher.role === 'teacher' && <input type="checkbox" aria-label={`选择${teacher.displayName}`} checked={selectedIds.includes(teacher.teacherId)} onChange={(event) => onSelectionChange(event.target.checked ? [...selectedIds, teacher.teacherId] : selectedIds.filter((id) => id !== teacher.teacherId))} />}</td>
                 <td><strong>{teacher.displayName}</strong><span>{teacher.account}</span><small>{teacher.role === 'admin' ? '系统管理员' : teacher.teacherId}</small></td>
@@ -588,6 +614,7 @@ function TeacherWorkspace({ teachers, loading, selectedIds, onSelectionChange, o
         {loading && <div className="admin-table-state">正在读取老师账号...</div>}
         {!loading && !teachers.length && <div className="admin-table-state">暂无老师账号</div>}
       </div>
+      {!loading && <AdminPagination page={page} totalPages={totalPages} totalItems={regularTeachers.length} pageSize={TEACHERS_PER_PAGE} itemLabel="名老师" onPageChange={setPage} />}
     </section>
   );
 }
@@ -601,16 +628,32 @@ function MessageBar({ message }) {
   );
 }
 
+function AdminPagination({ page, totalPages, totalItems, pageSize, itemLabel, onPageChange }) {
+  if (!totalItems) return null;
+  const firstItem = (page - 1) * pageSize + 1;
+  const lastItem = Math.min(page * pageSize, totalItems);
+
+  return (
+    <nav className="admin-pagination" aria-label={`${itemLabel}分页`}>
+      <span>显示 {firstItem}-{lastItem}，共 {totalItems} {itemLabel}</span>
+      <div>
+        <button type="button" onClick={() => onPageChange(page - 1)} disabled={page === 1} aria-label="上一页" title="上一页"><ChevronLeft size={15} /></button>
+        <strong>{page}<small>/ {totalPages}</small></strong>
+        <button type="button" onClick={() => onPageChange(page + 1)} disabled={page === totalPages} aria-label="下一页" title="下一页"><ChevronRight size={15} /></button>
+      </div>
+    </nav>
+  );
+}
+
 function StudentWorkspace({ session, students, teachers, importBatches, loading, importing, downloading, message, query, setQuery, statusFilter, setStatusFilter, onImport, onDownload, onRefresh, onAddStudent, onCopyStudentId }) {
   const isAdmin = session.role === 'admin';
   const inputRef = useRef(null);
+  const [page, setPage] = useState(1);
   const teacherById = useMemo(() => new Map(teachers.map((teacher) => [teacher.teacherId, teacher])), [teachers]);
   const visibleStudents = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     return students.filter((student) => {
-      const owner = teacherById.get(student.teacherId);
-      const matchesKeyword = !keyword || [student.name, student.studentId, student.level, student.courseLine, student.teamLeader, owner?.displayName, owner?.account]
-        .some((value) => String(value || '').toLowerCase().includes(keyword));
+      const matchesKeyword = !keyword || String(student.studentId || '').toLowerCase().includes(keyword);
       const matchesStatus = statusFilter === 'all'
         || (statusFilter === 'unviewed' && !student.viewedAt)
         || (statusFilter === 'viewed' && Boolean(student.viewedAt))
@@ -618,7 +661,20 @@ function StudentWorkspace({ session, students, teachers, importBatches, loading,
         || (statusFilter === 'unlocked' && !student.seatLocked);
       return matchesKeyword && matchesStatus;
     });
-  }, [students, teacherById, query, statusFilter]);
+  }, [students, query, statusFilter]);
+  const totalPages = Math.max(1, Math.ceil(visibleStudents.length / STUDENTS_PER_PAGE));
+  const pageStudents = useMemo(
+    () => visibleStudents.slice((page - 1) * STUDENTS_PER_PAGE, page * STUDENTS_PER_PAGE),
+    [visibleStudents, page],
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, statusFilter]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
 
   return (
     <section className="admin-workspace" aria-labelledby="student-management-title">
@@ -637,15 +693,15 @@ function StudentWorkspace({ session, students, teachers, importBatches, loading,
       {importBatches.length > 0 && <div className="admin-import-history" aria-label="最近导入记录"><strong>最近导入</strong>{importBatches.slice(0, 3).map((batch) => <span key={batch.batchId}>{batch.fileName || '未命名表格'} · {batch.importedCount} 条 · {formatDate(batch.createdAt)}</span>)}</div>}
       {message && <MessageBar message={message} />}
       <div className="admin-filterbar">
-        <label><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={isAdmin ? '搜索学生、老师、课线或组长' : '搜索姓名、学生 ID、课线或组长'} aria-label="搜索学生" /></label>
+        <label><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索用户 ID" aria-label="搜索用户 ID" autoCapitalize="characters" autoComplete="off" spellCheck="false" /></label>
         <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="筛选学生状态"><option value="all">全部状态</option><option value="unviewed">家长未查看</option><option value="viewed">家长已查看</option><option value="unlocked">学位未锁定</option><option value="locked">学位已锁定</option></select>
-        <span>显示 {visibleStudents.length}/{students.length} 名</span>
+        <span>匹配 {visibleStudents.length}/{students.length} 名</span>
       </div>
       <div className="admin-table-wrap">
         <table className={`admin-table admin-student-table ${isAdmin ? 'is-admin' : ''}`}>
           <thead><tr>{isAdmin && <th>课线</th>}<th>学员</th>{isAdmin && <th>归属老师</th>}{isAdmin && <th>组长</th>}<th>学习数据</th><th>家长访问</th><th>学位状态</th></tr></thead>
           <tbody>
-            {!loading && visibleStudents.map((student) => {
+            {!loading && pageStudents.map((student) => {
               const owner = teacherById.get(student.teacherId);
               return (
                 <tr key={student.studentId}>
@@ -665,6 +721,7 @@ function StudentWorkspace({ session, students, teachers, importBatches, loading,
         {!loading && !students.length && <div className="admin-table-state">暂无学生数据</div>}
         {!loading && students.length > 0 && !visibleStudents.length && <div className="admin-table-state">没有符合当前条件的学生</div>}
       </div>
+      {!loading && <AdminPagination page={page} totalPages={totalPages} totalItems={visibleStudents.length} pageSize={STUDENTS_PER_PAGE} itemLabel="名学生" onPageChange={setPage} />}
     </section>
   );
 }

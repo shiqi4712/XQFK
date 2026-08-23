@@ -638,6 +638,14 @@ button:disabled { cursor: not-allowed; }
 .admin-status.is-active strong { color: #176f61; background: #e4f4f0; }
 .admin-status span { display: block; margin-top: 5px; color: #8b98a2; font-size: 8px; line-height: 1.4; }
 .admin-table-state { padding: 44px 18px; color: #7c8993; font-size: 11px; text-align: center; }
+.admin-pagination { display: flex; min-height: 48px; align-items: center; justify-content: space-between; gap: 14px; padding: 8px 18px; border-top: 1px solid #e8ecef; color: #71808c; background: #fbfcfd; }
+.admin-pagination > span { font-size: 9px; font-weight: 700; }
+.admin-pagination > div { display: inline-flex; align-items: center; gap: 8px; }
+.admin-pagination button { display: grid; width: 30px; height: 30px; place-items: center; padding: 0; border: 1px solid #d4dde3; border-radius: 6px; color: #405766; background: #fff; }
+.admin-pagination button:hover:not(:disabled) { border-color: #8fa6b7; background: #f3f7f8; }
+.admin-pagination button:disabled { color: #b8c1c8; background: #f2f4f5; }
+.admin-pagination strong { min-width: 48px; color: #263b49; font-size: 10px; text-align: center; }
+.admin-pagination small { color: #8b98a2; font-size: 8px; font-weight: 700; }
 
 .page-enter { animation: page-in .38s ease-out both; }
 
@@ -679,7 +687,9 @@ button:disabled { cursor: not-allowed; }
   .admin-import-history span { width: 100%; }
   .admin-filterbar { flex-wrap: wrap; padding: 10px 14px; }
   .admin-filterbar label { width: 100%; }
+  .admin-filterbar input { font-size: 16px; }
   .admin-filterbar select { flex: 1 1 auto; }
+  .admin-pagination { padding: 9px 14px; }
   .admin-table-wrap { overflow-x: visible; }
   .admin-table { display: block; min-width: 0; }
   .admin-table thead { display: none; }
