@@ -682,7 +682,7 @@ function StudentWorkspace({ session, students, teachers, importBatches, loading,
         <div><p>{isAdmin ? 'ALL STUDENTS' : 'MY STUDENTS'}</p><h2 id="student-management-title">{isAdmin ? '学生名单与访问数据' : '我的学生与跟进状态'}</h2></div>
         <div className="admin-toolbar__actions">
           <button type="button" className="admin-icon-button" onClick={onRefresh} aria-label="刷新学生数据" title="刷新学生数据"><RefreshCw size={17} /></button>
-          <button type="button" className="admin-download-button" onClick={onDownload} disabled={downloading || loading}><Download size={17} /><span>{downloading ? '正在生成' : '下载数据'}</span></button>
+          {isAdmin && <button type="button" className="admin-download-button" onClick={onDownload} disabled={downloading || loading}><Download size={17} /><span>{downloading ? '正在生成' : '下载数据'}</span></button>}
           {isAdmin && <button type="button" className="admin-download-button" onClick={() => downloadXlsxTemplate([{ 用户ID: 'STU0004', 学员姓名: '示例学生', 老师姓名: '陈老师', 课线: '图形化编程', 组长: '张组长', 作业提交数: 3 }], '学生名单导入模板.xlsx')}><FileDown size={17} /><span>下载模板</span></button>}
           {isAdmin && <button type="button" className="admin-import-button" onClick={() => inputRef.current?.click()} disabled={importing}><Upload size={17} /><span>{importing ? '正在导入' : '批量导入学生'}</span></button>}
           <button type="button" className="admin-add-button" onClick={onAddStudent}><Plus size={17} /><span>单个新增</span></button>
