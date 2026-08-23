@@ -51,6 +51,7 @@ function normalizeStudent(input, existing, teacherId) {
       studyHours: toNumber(input.studyHours, 0, 0, 10000),
     },
     viewedAt: existing?.viewedAt || null,
+    viewDurationSeconds: toNumber(existing?.viewDurationSeconds, 0),
     seatLocked: Boolean(existing?.seatLocked),
     seatLockedAt: existing?.seatLockedAt || null,
     selectedClassTime: existing?.selectedClassTime || null,
@@ -104,6 +105,7 @@ function mapStudent(row) {
     scheduleId: row.scheduleId || '',
     learningData: parseJson(row.learningData, {}),
     viewedAt: toIso(row.viewedAt),
+    viewDurationSeconds: toNumber(row.viewDurationSeconds, 0),
     seatLocked: Boolean(row.seatLocked),
     seatLockedAt: toIso(row.seatLockedAt),
     selectedClassTime: parseJson(row.selectedClassTime),
@@ -270,6 +272,16 @@ function createJsonStore() {
         return student;
       });
     },
+    async addStudentViewDuration(studentId, activeSeconds) {
+      return mutate(async () => {
+        const students = await readJson(studentsFile);
+        const student = students.find((item) => item.studentId === studentId);
+        if (!student) return null;
+        student.viewDurationSeconds = toNumber(student.viewDurationSeconds, 0) + activeSeconds;
+        await writeJson(studentsFile, students);
+        return student;
+      });
+    },
     async lockStudentSeat(studentId, selection) {
       return mutate(async () => {
         const students = await readJson(studentsFile);
@@ -337,7 +349,8 @@ function mysqlStudentSelect() {
   return `SELECT student_id AS studentId, teacher_id AS teacherId, report_code AS reportCode,
     name, level, course_line AS courseLine, team_leader AS teamLeader,
     schedule_id AS scheduleId, learning_data AS learningData,
-    viewed_at AS viewedAt, seat_locked AS seatLocked, seat_locked_at AS seatLockedAt,
+    viewed_at AS viewedAt, view_duration_seconds AS viewDurationSeconds,
+    seat_locked AS seatLocked, seat_locked_at AS seatLockedAt,
     selected_class_time AS selectedClassTime FROM students`;
 }
 
@@ -475,6 +488,11 @@ async function createMysqlStore() {
     },
     async markStudentViewed(studentId) {
       const [result] = await pool.execute('UPDATE students SET viewed_at = CURRENT_TIMESTAMP(3) WHERE student_id = ?', [studentId]);
+      return result.affectedRows ? this.getStudentById(studentId) : null;
+    },
+    async addStudentViewDuration(studentId, activeSeconds) {
+      const [result] = await pool.execute(`UPDATE students
+        SET view_duration_seconds = view_duration_seconds + ? WHERE student_id = ?`, [activeSeconds, studentId]);
       return result.affectedRows ? this.getStudentById(studentId) : null;
     },
     async lockStudentSeat(studentId, selection) {

@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS students (
   schedule_id VARCHAR(80) NOT NULL DEFAULT '',
   learning_data JSON NOT NULL,
   viewed_at DATETIME(3) NULL,
+  view_duration_seconds BIGINT UNSIGNED NOT NULL DEFAULT 0,
   seat_locked BOOLEAN NOT NULL DEFAULT FALSE,
   seat_locked_at DATETIME(3) NULL,
   selected_class_time JSON NULL,

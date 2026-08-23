@@ -313,6 +313,14 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const leaveReport = () => {
+    setStudent(null);
+    setStudentId('');
+    setAgreed(false);
+    setReserved(false);
+    setView('login');
+  };
+
   const reserveSeat = async (selection) => {
     try {
       const response = await fetch(`/api/students/${encodeURIComponent(student.studentId)}/seat-lock`, {
@@ -335,6 +343,63 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  useEffect(() => {
+    if (!student?.studentId) return undefined;
+    const trackedStudentId = student.studentId;
+    let visibleSince = document.visibilityState === 'visible' ? performance.now() : null;
+    let pendingMilliseconds = 0;
+
+    const collectVisibleTime = () => {
+      if (visibleSince == null) return;
+      const now = performance.now();
+      pendingMilliseconds += Math.max(0, now - visibleSince);
+      visibleSince = now;
+    };
+
+    const transmitDuration = (final = false) => {
+      collectVisibleTime();
+      const activeSeconds = Math.min(30, Math.floor(pendingMilliseconds / 1000));
+      if (activeSeconds < 1) return;
+      pendingMilliseconds -= activeSeconds * 1000;
+      const url = `/api/students/${encodeURIComponent(trackedStudentId)}/view-duration`;
+      const body = JSON.stringify({ activeSeconds });
+
+      if (final && navigator.sendBeacon) {
+        const sent = navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+        if (sent) return;
+      }
+
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: final,
+      }).catch(() => {
+        if (!final) pendingMilliseconds += activeSeconds * 1000;
+      });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        transmitDuration();
+        visibleSince = null;
+      } else {
+        visibleSince = performance.now();
+      }
+    };
+    const handlePageHide = () => transmitDuration(true);
+    const heartbeat = window.setInterval(() => transmitDuration(), 20_000);
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      window.clearInterval(heartbeat);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+      transmitDuration(true);
+    };
+  }, [student?.studentId]);
+
   if (isAdminRoute) return <AdminView />;
 
   if (view === 'login') {
@@ -351,7 +416,7 @@ function App() {
 
   return (
     <main className={`app-shell ${view === 'seat' ? 'app-shell--seat' : ''}`}>
-      <AppHeader student={student} view={view} onNavigate={navigate} onLogout={() => setView('login')} />
+      <AppHeader student={student} view={view} onNavigate={navigate} onLogout={leaveReport} />
 
       <div key={view} className="page-enter">
         {view === 'analytics' && <AnalyticsView student={student} onNext={() => navigate('ability')} />}
