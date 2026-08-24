@@ -480,12 +480,6 @@ button:disabled { cursor: not-allowed; }
 .letter-signature strong { font-size: 12px; font-weight: 700; }
 .letter-signature span { margin-top: 4px; color: #ffd85d; font-size: 10px; }
 
-.agreement-check { display: flex; width: 100%; align-items: center; gap: 11px; margin-top: 13px; padding: 13px; border: 1px solid rgba(255,255,255,.3); border-radius: 8px; color: #fff; background: rgba(13,53,160,.32); text-align: left; transition: border-color .25s ease,background .25s ease,box-shadow .25s ease; }
-.agreement-check > span { display: grid; width: 22px; height: 22px; flex: 0 0 auto; place-items: center; border: 1px solid rgba(255,255,255,.7); border-radius: 6px; color: #2459d8; background: rgba(255,255,255,.12); }
-.agreement-check strong { display: block; color: #fff; font-size: 11px; }
-.agreement-check small { display: block; margin-top: 3px; color: #d4e1ff; font-size: 8px; }
-.agreement-check.is-checked { border-color: #ffd85d; background: rgba(255,216,93,.12); box-shadow: 0 8px 22px rgba(14,46,133,.2); }
-.agreement-check.is-checked > span { border-color: #ffd85d; background: #ffd85d; }
 .letter-page .bottom-action { border-top-color: rgba(255,255,255,.18); background: rgba(31,78,199,.92); }
 .letter-page .bottom-action .back-button { border-color: rgba(255,255,255,.34); color: #fff; background: rgba(255,255,255,.12); }
 .letter-page .primary-button { border: 1px solid rgba(255,255,255,.34); color: #fff; background: #1746b8; box-shadow: 0 10px 24px rgba(12,42,122,.28); }
@@ -899,8 +893,6 @@ button:disabled { cursor: not-allowed; }
   .app-shell .letter-closing { font-size: 14px; line-height: 1.9; }
   .app-shell .letter-signature strong { font-size: 13px; }
   .app-shell .letter-signature span { font-size: 11px; }
-  .app-shell .agreement-check strong { font-size: 13px; }
-  .app-shell .agreement-check small { font-size: 11px; line-height: 1.5; }
 
   .reason-detail-dialog__content p { font-size: 11px; }
   .app-shell .seat-back { font-size: 12px; }
@@ -965,8 +957,6 @@ button:disabled { cursor: not-allowed; }
   .app-shell .letter-principles__benefits strong { font-size: 13px; }
   .app-shell .letter-principles__benefits span { font-size: 13px; font-weight: 700; }
   .app-shell .letter-closing { font-size: 15px; font-weight: 600; }
-  .app-shell .agreement-check strong { font-size: 14px; }
-  .app-shell .agreement-check small { font-size: 12px; font-weight: 600; }
 
   .reason-detail-dialog__content h2 { font-size: 24px; }
   .reason-detail-dialog__content p { font-size: 12px; }
