@@ -12,7 +12,6 @@ import {
   Clock3,
   Code2,
   Compass,
-  FileCheck2,
   Fingerprint,
   GraduationCap,
   HeartHandshake,
@@ -266,7 +265,6 @@ function App() {
   const [student, setStudent] = useState(null);
   const [loginError, setLoginError] = useState('');
   const [loginPending, setLoginPending] = useState(false);
-  const [agreed, setAgreed] = useState(false);
   const [reserved, setReserved] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -291,7 +289,6 @@ function App() {
         learningReport: createLearningReport(matchedStudent.learningData, matchedStudent.studentId),
       });
       setLoginError('');
-      setAgreed(false);
       setReserved(Boolean(matchedStudent.seatLocked));
       setView('analytics');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -316,7 +313,6 @@ function App() {
   const leaveReport = () => {
     setStudent(null);
     setStudentId('');
-    setAgreed(false);
     setReserved(false);
     setView('login');
   };
@@ -427,12 +423,7 @@ function App() {
           <RoadmapView onBack={() => navigate('ability')} onNext={() => navigate('consensus')} />
         )}
         {view === 'consensus' && (
-          <ConsensusView
-            agreed={agreed}
-            setAgreed={setAgreed}
-            onBack={() => navigate('roadmap')}
-            onNext={() => navigate('seat')}
-          />
+          <ConsensusView onBack={() => navigate('roadmap')} onNext={() => navigate('seat')} />
         )}
         {view === 'seat' && (
           <SeatView student={student} reserved={reserved} onReserve={reserveSeat} onBack={() => navigate('consensus')} />
@@ -874,7 +865,7 @@ function ReasonDetailDialog({ reason, onClose }) {
   );
 }
 
-function ConsensusView({ agreed, setAgreed, onBack, onNext }) {
+function ConsensusView({ onBack, onNext }) {
   const [activeReason, setActiveReason] = useState(null);
   const reasons = [
     {
@@ -959,21 +950,10 @@ function ConsensusView({ agreed, setAgreed, onBack, onNext }) {
         </div>
       </article>
 
-      <button
-        className={`agreement-check ${agreed ? 'is-checked' : ''}`}
-        onClick={() => setAgreed(!agreed)}
-        role="checkbox"
-        aria-checked={agreed}
-      >
-        <span>{agreed && <Check size={16} strokeWidth={3} />}</span>
-        <div><strong>我已了解以上成长支持</strong><small>继续查看科特班上课时间</small></div>
-      </button>
-
       <BottomAction
-        label={agreed ? '查看上课时间' : '请先确认已了解'}
-        icon={agreed ? FileCheck2 : ShieldCheck}
+        label="查看上课时间"
+        icon={ShieldCheck}
         onClick={onNext}
-        disabled={!agreed}
         secondaryAction={onBack}
       />
 
